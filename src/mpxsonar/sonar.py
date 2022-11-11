@@ -369,7 +369,7 @@ def parse_args(args):
         "-v",
         "--version",
         action="version",
-        version="mpxsonar " + VERSION,
+        version="MPXSonar " + VERSION,
         help="Show program's version number and exit.",
     )
 
@@ -400,7 +400,7 @@ def parse_args(args):
 
 def check_file(fname):
     if not os.path.isfile(fname):
-        sys.exit("iput error: " + fname + " is not a valid file.")
+        sys.exit("input error: " + fname + " is not a valid file.")
 
 
 def main(args):  # noqa: C901
@@ -629,6 +629,22 @@ def main(args):  # noqa: C901
         reserved_props = {}
 
         with sonarDBManager(args.db, readonly=False, debug=args.debug) as dbm:
+            # check reference
+            if args.reference:
+                if len(dbm.references) != 0 and args.reference not in [
+                    d["accession"] for d in dbm.references
+                ]:
+                    rows = dbm.references
+                    if not rows:
+                        print("*** no references ***")
+                    else:
+                        print("*** Available Reference***")
+                        print(tabulate(rows, headers="keys", tablefmt="fancy_grid"))
+                    sys.exit(
+                        "Input Error: "
+                        + str(args.reference)
+                        + " is not available in our database."
+                    )
             for pname in dbm.properties:
                 if hasattr(args, pname):
                     props[pname] = getattr(args, pname)
@@ -637,7 +653,7 @@ def main(args):  # noqa: C901
                     reserved_props["with_sublineage"] = args.with_sublineage
                 else:
                     sys.exit(
-                        "input error: "
+                        "Input Error: "
                         + args.with_sublineage
                         + " is mismatch to the available properties"
                     )

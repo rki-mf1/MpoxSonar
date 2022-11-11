@@ -811,12 +811,14 @@ class sonarDBManager:
             "SELECT `molecule.accession`, `molecule.id` FROM referenceView WHERE "
             + condition
         )
+        # print(sql, val)
         self.cursor.execute(sql, val)
         output = {
             x["molecule.accession"]: x["molecule.id"]
             for x in self.cursor.fetchall()
             if x is not None
         }
+        # print(output)
         return output
 
     # Do we need this function?
@@ -888,6 +890,7 @@ class sonarDBManager:
         if type:
             sql += " AND type = ?"
             molecule_ids.append(type)
+        # print(sql, molecule_ids)
         self.cursor.execute(sql, molecule_ids)
         row = self.cursor.fetchall()
         if not row:
