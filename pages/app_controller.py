@@ -6,9 +6,10 @@
 import sys
 from textwrap import fill
 
+import pandas as pd
+
 from .libs.mpxsonar.src.mpxsonar.basics import sonarBasics
 from .libs.mpxsonar.src.mpxsonar.dbm import sonarDBManager
-import pandas as pd
 
 
 # CLASS
@@ -130,7 +131,7 @@ def match_controller(args):  # noqa: C901
                 )
     with sonarDBManager(args.db, readonly=False, debug=args.debug) as dbm:
         if args.reference:
-            if len(dbm.references) != 0 and not args.reference in [
+            if len(dbm.references) != 0 and args.reference not in [
                 d["accession"] for d in dbm.references
             ]:
                 return f"{args.reference} reference is not available."

@@ -16,7 +16,7 @@ conda activate mpxradar
 3. Next, we use [poetry](https://python-poetry.org/docs/basic-usage/) to install/manage dependencies of the project.
 ```
 cd MPXRadar-frontend
-poetry install 
+poetry install
 ```
 4. By default, MPXSonar expects the file ".env" and is located in the current root directory. Please change the example ".env.template" to ".env".
 ```

@@ -23,8 +23,9 @@ poetry install  # install current source of covsonar and its dependencies
 ## Before Commit/Push
 1. Self-review
     + Check the current branch.
-    + Confirm the changes meet the goals 
-2. Run python-format checking -> `pre-commit run --all-files`. Fix it if found; otherwise, you will not be allowed to commit and push.
+    + Confirm the changes meet the goals
+2. Run python-format checking -> `pre-commit run --all-files`. (In most cases, this command will fix all the problems if found) however, sometimes, some errors cannot be solved automatically. Hence
+you have to fix it manually according to the error message; otherwise, you will not be allowed to commit and push.
 
 ## Pull Request
 When you're finished with the changes, create a pull request, also known as a PR.
