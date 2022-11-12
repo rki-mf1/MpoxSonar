@@ -1,8 +1,8 @@
 import argparse
 
-from app_controller import get_freq_mutation
-from app_controller import match_controller
-from app_controller import sonarBasicsChild
+from apps.app_controller import get_freq_mutation
+from apps.app_controller import match_controller
+from apps.app_controller import sonarBasicsChild
 from dash import Dash
 from dash import dash_table
 from dash import dcc

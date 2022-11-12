@@ -1,8 +1,8 @@
 import argparse
 
-from app_controller import get_freq_mutation
-from app_controller import match_controller
-from app_controller import sonarBasicsChild
+from pages.app_controller import get_freq_mutation
+from pages.app_controller import match_controller
+from pages.app_controller import sonarBasicsChild
 from dash import Dash
 from dash import dash_table
 from dash import dcc
@@ -11,7 +11,7 @@ from dash import Input
 from dash import Output
 from dash import State
 import dash_bootstrap_components as dbc
-from libs.mpxsonar.src.mpxsonar.sonar import parse_args
+from pages.libs.mpxsonar.src.mpxsonar.sonar import parse_args
 
 # stylesheet with the .dbc class
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"

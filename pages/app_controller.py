@@ -6,8 +6,8 @@
 import sys
 from textwrap import fill
 
-from libs.mpxsonar.src.mpxsonar.basics import sonarBasics
-from libs.mpxsonar.src.mpxsonar.dbm import sonarDBManager
+from .libs.mpxsonar.src.mpxsonar.basics import sonarBasics
+from .libs.mpxsonar.src.mpxsonar.dbm import sonarDBManager
 import pandas as pd
 
 
