@@ -3,8 +3,9 @@ from pathlib import Path
 import sqlite3
 
 from Bio.Seq import Seq
-from mpxsonar.dbm import sonarDBManager
 import pytest
+
+from mpxsonar.dbm import sonarDBManager
 
 
 def test_add_property_that_exists(init_writeable_dbm):

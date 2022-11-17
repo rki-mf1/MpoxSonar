@@ -6,6 +6,22 @@ import sys
 from Bio.SeqUtils.CheckSum import seguid
 
 
+def print_max_min_rule(ref):
+    up = int((len(ref) * 100.3) / 100)
+    low = int((len(ref) * 99.7) / 100)
+    return f"Accept lenght:{low}<{len(ref)}<{up}"
+
+
+def check_seq_compact(ref, qry):
+    qry_size = len(qry)
+    up = int((len(ref) * 100.3) / 100)
+    low = int((len(ref) * 99.7) / 100)
+    if low < qry_size and qry_size < up:
+        return True
+    else:
+        return False
+
+
 def hash(seq):
     """ """
     return seguid(seq)

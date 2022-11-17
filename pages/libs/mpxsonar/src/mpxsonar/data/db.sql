@@ -86,11 +86,12 @@ CREATE TABLE IF NOT EXISTS `mpx`.`sample` (
 -- structure for table mpx.alignment
 CREATE TABLE IF NOT EXISTS `mpx`.`alignment` (
 	id INTEGER AUTO_INCREMENT,
-	seqhash VARCHAR(200) NOT NULL UNIQUE,
+	seqhash VARCHAR(200) NOT NULL,
 	element_id INTEGER NOT NULL,
 	PRIMARY KEY(id),
 	FOREIGN KEY(seqhash) REFERENCES `sequence`(seqhash) ON DELETE CASCADE,
-	FOREIGN KEY(element_id) REFERENCES `element`(id) ON DELETE CASCADE
+	FOREIGN KEY(element_id) REFERENCES `element`(id) ON DELETE CASCADE,
+	CONSTRAINT uni_seq_eleID UNIQUE (seqhash,element_id)
 );
 -- structure for table test.mpx.property
 CREATE TABLE IF NOT EXISTS `mpx`.`property` (

@@ -507,6 +507,23 @@ class sonarDBManager:
                 self.insert_property(sid, pname, self.properties[pname]["standard"])
         return sid
 
+    def delete_alignment(self, seqhash=None, element_id=None):
+        condition = ""
+
+        if seqhash:
+            condition = f" seqhash = '{seqhash}'"
+        if element_id:
+            if condition:
+                condition = condition + f" AND element_id = '{element_id}'"
+            else:
+                condition = f" element_id = '{element_id}'"
+        if not condition:
+            logging.info("Nothing to delete an alignment")
+            return
+
+        sql = f"DELETE FROM alignment WHERE {condition};"
+        self.cursor.execute(sql)
+
     def insert_alignment(self, seqhash, element_id):
         """
         Inserts a sequence-alignment relation insert the database if not existing.
@@ -554,6 +571,7 @@ class sonarDBManager:
         if symbol.strip() == "":
             symbol = accession
         if standard:
+            # we update standard to 1 to put every molecule loaded into _source
             sql = "UPDATE molecule SET standard = ? WHERE reference_id = ? AND standard = 1"
             self.cursor.execute(sql, [0, reference_id])
         sql = "INSERT INTO molecule (id, reference_id, type, accession, symbol, description, segment, length, standard) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);"
@@ -897,6 +915,15 @@ class sonarDBManager:
             return []
         return [x["id"] for x in row]
 
+    def get_ele_ofref_bynoCDS(self):
+        """
+        get all element id of reference where ref did not contain CDS data.
+        """
+        sql = """SELECT t1.* FROM element t1 LEFT JOIN element t2 ON t1.id = t2.parent_id WHERE t2.id IS NULL AND t1.type = "source" """
+        self.cursor.execute(sql)
+        row = self.cursor.fetchall()
+        return row
+
     def get_source(self, molecule_id):
         return self.get_elements(molecule_id, "source")[0]
 
@@ -978,7 +1005,7 @@ class sonarDBManager:
             condition = " IN (" + ", ".join(["?"] * len(element_ids)) + ")"
         else:
             condition = ""
-        print("Condition:" + condition)
+        # print("Condition:" + condition)
         sql = (
             """ SELECT  variant.element_id as `element.id`,
                     variant.start as `variant.start`,
@@ -1584,7 +1611,8 @@ class sonarDBManager:
         format="csv",
     ):
         """
-
+        # TODO check if reference is not exit.
+        # get all alignment
         Note:
             If reference accession is None, we will query all varaints with all references.
         Return:
@@ -1644,8 +1672,8 @@ class sonarDBManager:
             include_lin = _tmp_include_lin
             properties[lineage_col] = include_lin
         if self.debug:
-            logging.info(properties)
-
+            logging.info(f"list all prop.:{properties}")
+        # if properties are present in query
         if properties:
             for pname, vals in properties.items():
                 if vals is not None:
@@ -1653,11 +1681,10 @@ class sonarDBManager:
                     property_sqls.append(sql)
                     property_vals.extend(val)
 
-        # TODO check if reference is not exit.
-
         property_sqls = " INTERSECT ".join(property_sqls)
         if self.debug:
             logging.info(f"SQL Properties:{property_sqls}")
+
         # collecting sqls for genomic profile based filtering
         profile_sqls = []
         profile_vals = []
@@ -1668,8 +1695,6 @@ class sonarDBManager:
             )
             profile_sqls.append(sql)
             profile_vals.extend(val)
-        if self.debug:
-            logging.info(f"profile_sqls:{profile_sqls}")
 
         if len(profiles) == 1:
             profile_sqls = profile_sqls[0]
@@ -1679,6 +1704,8 @@ class sonarDBManager:
             )
         else:
             profile_sqls = ""
+        if self.debug:
+            logging.info(f"profile_sqls:{profile_sqls}")
 
         if property_sqls and profile_sqls:
             if len(profiles) > 1:
@@ -1706,10 +1733,11 @@ class sonarDBManager:
                 property_sqls = []
                 property_vals = []
             else:
-                # in case: there is no profile query.
+                # in case: there is no profile in the query and no specific sample.
+
                 # we need to check if ref accession number is given.
                 if reference_accession:
-                    sample_selection_sql = "SELECT `sample.id` AS id FROM alignmentView WHERE `reference.accession`={}".format(
+                    sample_selection_sql = "SELECT DISTINCT(`sample.id`) AS id FROM alignmentView WHERE `reference.accession`={}".format(
                         '"' + reference_accession + '"'
                     )
                 else:
@@ -1737,16 +1765,26 @@ class sonarDBManager:
         else:
             nn = ""
             nx = ""
-
+        # find element id for CDS
         cds_element_condition = [
             str(x) for x in self.get_element_ids(reference_accession, "cds")
         ]
+        # fix all reference query when some refs they have no cds tag.
+        all_refID_nocds = [str(x["id"]) for x in self.get_ele_ofref_bynoCDS()]
+        all_ref_nocds = [str(x["accession"]) for x in self.get_ele_ofref_bynoCDS()]
+        if not reference_accession:
+            cds_element_condition.extend(all_refID_nocds)
+
         if len(cds_element_condition) == 1:
             cds_element_condition = "`element.id` = " + cds_element_condition[0]
-        else:
+            cds_element_condition = " AND " + cds_element_condition
+        elif len(cds_element_condition) > 1:
             cds_element_condition = (
                 "`element.id` IN (" + ", ".join(cds_element_condition) + ")"
             )
+            cds_element_condition = " AND " + cds_element_condition
+        else:
+            cds_element_condition = ""
 
         # standard query
         if format == "csv" or format == "tsv":
@@ -1794,8 +1832,7 @@ class sonarDBManager:
                 + ")"
             )
             if self.debug:
-                logging.info("First SQL")
-                logging.info(_1_final_sql)
+                logging.info("First SQL: " + _1_final_sql)
 
             self.cursor.execute(_1_final_sql)
             _1_rows = self.cursor.fetchall()
@@ -1816,7 +1853,7 @@ class sonarDBManager:
                 + '`element.symbol`, ":" ,`variant.label`) AS _profile \
                               FROM variantView WHERE `sample.id` IN ('
                 + selected_sample_ids
-                + ") AND "
+                + ") "
                 + cds_element_condition
                 + nx
                 + " GROUP BY `sample.id`, reference_accession \
@@ -1840,10 +1877,8 @@ class sonarDBManager:
                     % (len(_1_rows), len(_2_rows))
                 )
                 logging.warning(
-                    "This might happen when the ID of a sample does not represent in either fasta or meta-info file, or there is no NT/AA profile in a sample"
-                )
-                logging.warning(
-                    "Please interpret result carefully, otherwise contact us"
+                    "This can happen when the ID of a sample does not represent in fasta or in meta info. or there is no NT/AA profile in a sample."
+                    + " It can also be the reason of one sample is aligning with more than one reference."
                 )
 
             # print(set([ x['sample.name'] for x in _1_rows ]) ^ set([ x['name'] for x in _2_rows ]))
@@ -1872,6 +1907,7 @@ class sonarDBManager:
             # ------ alternative solution convert to df
             df_1 = pd.DataFrame(_1_rows)
             df_2 = pd.DataFrame(_2_rows)
+            """
             merge_df = pd.merge(
                 df_1,
                 df_2,
@@ -1879,12 +1915,27 @@ class sonarDBManager:
                 left_on=["sample.name"],
                 right_on=["sample.name"],
             )
+
+            """
+            merge_df = pd.merge(
+                df_1,
+                df_2,
+                how="outer",
+                left_on=["sample.name"],
+                right_on=["sample.name"],
+            )
+            # fix column for ref with noCDS
+            merge_df.loc[
+                merge_df["reference_accession"].isin(all_ref_nocds), "AA_PROFILE_y"
+            ] = "-"
+
             _1_rows = merge_df.to_dict("records")
             # filter column
             if output_column != "all":
                 _1_rows = [
                     {k: v for k, v in d.items() if k in output_column} for d in _1_rows
                 ]
+
             # print(list(_1_rows))
             # since we use "update" function (i.e. extends the dict. to include all key:value from properties base on sample name)
             # at _1_rows so we can return _1_rows only a

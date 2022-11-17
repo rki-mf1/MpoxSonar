@@ -19,6 +19,7 @@ from .align import sonarAligner
 from .cache import sonarCache
 from .dbm import sonarDBManager
 from .utils import harmonize
+from .utils import print_max_min_rule
 
 
 # CLASS
@@ -111,7 +112,6 @@ class sonarBasics(object):
         """
         add reference
         """
-
         with sonarDBManager(db_url, readonly=False, debug=debug) as dbm:
             try:
                 records = [x for x in sonarBasics.iter_genbank(reference_gb)]
@@ -288,6 +288,9 @@ class sonarBasics(object):
                 for feat in gb_record.features:
                     # adding gene annotation
                     if feat.type == "gene":
+                        # pseudogene is unknown
+                        if "pseudogene" in feat.qualifiers:
+                            continue
                         if feat.id != "<unknown id>":
                             accession = feat.id
                         elif "gene" in feat.qualifiers:
@@ -317,10 +320,14 @@ class sonarBasics(object):
                         )
                     # adding cds annotation
                     elif feat.type == "CDS":
+                        # pseudogene is unknown
+                        if "pseudogene" in feat.qualifiers:
+                            continue
                         if "gene" in feat.qualifiers:
                             symbol = feat.qualifiers["gene"][0]
                         else:
                             symbol = feat.qualifiers["locus_tag"][0]
+
                         gb_data["cds"].append(
                             {
                                 "accession": feat.qualifiers["protein_id"][0],
@@ -451,7 +458,7 @@ class sonarBasics(object):
             disable_progress=not progress,
             refacc=reference,
         )
-
+        logging.info(print_max_min_rule(cache.get_refseq(reference)))
         # importing sequences
         if fasta:
             cache.add_fasta(*fasta, propdict=properties)
@@ -524,6 +531,7 @@ class sonarBasics(object):
                 showNX=showNX,
             )
             if format == "csv" or format == "tsv":
+                logging.info("Total result: " + str(len(cursor)))
                 tsv = True if format == "tsv" else False
                 sonarBasics.exportCSV(
                     cursor, outfile=outfile, na="*** no match ***", tsv=tsv
@@ -614,13 +622,25 @@ class sonarBasics(object):
     # delete reference
     @staticmethod
     def del_ref(db, reference, debug):
-        logging.info("Start to delete.... process is not reversible.")
+        logging.info("Start to delete....the process is not reversible.")
         with sonarDBManager(db, readonly=False, debug=debug) as dbm:
+
+            # remove alignment
             samples_ids = dbm.get_samples_by_ref(reference)
-            logging.info(f"{len(samples_ids)} linked sample will be deleted")
+            logging.info(
+                f"{len(samples_ids)} sample that linked to the reference will be also deleted"
+            )
+            # delete only reference will also delete the whole related data.
+            """
             if samples_ids:
+                if debug:
+                    logging.info(f"Delete: {samples_ids}")
                 for sample in samples_ids:
-                    dbm.delete_seqhash(sample["seqhash"])
+                    # dbm.delete_seqhash(sample["seqhash"])
+                    dbm.delete_alignment(
+                        seqhash=sample["seqhash"], element_id=_ref_element_id
+                    )
+            """
             dbm.delete_reference(reference)
 
     @staticmethod
