@@ -45,7 +45,10 @@ class sonarAligner(object):
         self.log(msg + "=" + " LO:" + str(lower_bound) + "UP:" + str(upper_bound))
         self.log("#----------#")
 
-    def align(self, qry, ref, gapopen=10, gapextend=1):
+    # gapopen=16, gapextend=4
+    # gapopen=10, gapextend=1
+
+    def align(self, qry, ref, gapopen=16, gapextend=4):
         """ """
         try:
             cline = StretcherCommandline(
@@ -55,11 +58,15 @@ class sonarAligner(object):
                 gapextend=gapextend,
                 outfile="stdout",
                 aformat="fasta",
+                # datafile="EDNAFULL", auto set by strecher
             )
             stdout, stderr = cline()
             self.cal_seq_length(stdout[0:20], msg="stdout")
+            # find the fist position of '\n' to get seq1
             s1 = stdout.find("\n") + 1
+            # find the start of second sequence position
             e = stdout[1:].find(">") + 1
+            # find the '\n' of the second sequence  to get seq2
             s2 = stdout[e:].find("\n") + e
             qry = stdout[s1:e].replace("\n", "")
             ref = stdout[s2:].replace("\n", "")

@@ -420,7 +420,6 @@ def main(args):  # noqa: C901
         logging.warning("No --db is given, MPXSonar use variables from .env file.")
     #    if args.tool != "setup" and args.db is not None and not os.path.isfile(args.db):
     #        sys.exit("input error: database does not exist.")
-    # check_db_compatibility
 
     # tool procedures
     # setup, db-upgrade
@@ -442,6 +441,24 @@ def main(args):  # noqa: C901
     else:
         with sonarDBManager(args.db, readonly=True) as dbm:
             dbm.check_db_compatibility()
+
+            # check all conditions before continuing
+            # check reference
+            if hasattr(args, "reference") and args.reference:
+                if len(dbm.references) != 0 and args.reference not in [
+                    d["accession"] for d in dbm.references
+                ]:
+                    rows = dbm.references
+                    if not rows:
+                        print("*** no references ***")
+                    else:
+                        print("*** Available Reference***")
+                        print(tabulate(rows, headers="keys", tablefmt="fancy_grid"))
+                    sys.exit(
+                        "Input Error: "
+                        + str(args.reference)
+                        + " is not available in our database."
+                    )
     # other than the above
     # import
     if args.tool == "import":
@@ -629,22 +646,6 @@ def main(args):  # noqa: C901
         reserved_props = {}
 
         with sonarDBManager(args.db, readonly=False, debug=args.debug) as dbm:
-            # check reference
-            if args.reference:
-                if len(dbm.references) != 0 and args.reference not in [
-                    d["accession"] for d in dbm.references
-                ]:
-                    rows = dbm.references
-                    if not rows:
-                        print("*** no references ***")
-                    else:
-                        print("*** Available Reference***")
-                        print(tabulate(rows, headers="keys", tablefmt="fancy_grid"))
-                    sys.exit(
-                        "Input Error: "
-                        + str(args.reference)
-                        + " is not available in our database."
-                    )
             for pname in dbm.properties:
                 if hasattr(args, pname):
                     props[pname] = getattr(args, pname)

@@ -2,8 +2,9 @@ import lzma
 from pathlib import Path
 import re
 
-from mpxsonar.basics import sonarBasics
 import pytest
+
+from mpxsonar.basics import sonarBasics
 
 
 def test_setup_and_file_exists(tmpfile_name):

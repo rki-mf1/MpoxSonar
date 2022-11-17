@@ -20,6 +20,7 @@ from tqdm import tqdm
 
 from .align import sonarAligner
 from .dbm import sonarDBManager
+from .utils import check_seq_compact
 from .utils import harmonize
 from .utils import hash
 from .utils import open_file
@@ -529,12 +530,22 @@ class sonarCache:
         default_properties = {
             x: self.properties[x]["standard"] for x in self.properties
         }
+        failed_list = []
         with sonarDBManager(self.db, debug=self.debug) as dbm:
             for fname in fnames:
                 for data in self.iter_fasta(fname):
+                    # print(data)
+                    # check sequence lenght
+                    if not check_seq_compact(
+                        self.get_refseq(data["refmol"]), data["sequence"]
+                    ):
+                        failed_list.append((data["name"], len(data["sequence"])))
+                        # log fail samples
+                        continue
                     # check sample
                     data["sampleid"], seqhash = dbm.get_sample_data(data["name"])
                     data["sourceid"] = dbm.get_source(data["refmolid"])["id"]
+
                     # check properties
                     if data["sampleid"] is None:
                         props = default_properties
@@ -552,7 +563,7 @@ class sonarCache:
                     # check reference
                     # print("refmol", data)
                     # CHANGED IN MPXsonar: use ref acc
-                    # refseq_id = self.get_refseq_id(data["refmol"])
+                    # refseq_id = self.get_refseq_id(data["refmol"]) from old covsonar
                     refseq_id = data["refmol"]
 
                     self.write_checkref_log(data, refseq_id)
@@ -562,6 +573,12 @@ class sonarCache:
                     data = self.assign_data(data, seqhash, refseq_id, dbm)
                     del data["sequence"]
                     self.cache_sample(**data)
+        if failed_list:
+            self.log(
+                "Sample will not be processed due to viloate max/min seq lenght rule (+-3%):"
+                + str(failed_list),
+            )
+            logging.warn("Fail max/min seq lenght rule:" + str(failed_list))
 
     def write_checkref_log(self, data, refseq_id):
         """this function linked to the add_fasta"""
@@ -633,12 +650,18 @@ class sonarCache:
                 bar_format="{desc} {percentage:3.0f}% [{n_fmt}/{total_fmt}, {elapsed}<{remaining}, {rate_fmt}{postfix}]",
                 disable=self.disable_progress,
             ):
+                print("\n")
+                print("-----####------ sample_data -----####------")
+                print(sample_data)
+
                 try:
                     # nucleotide level import
                     if not sample_data["seqhash"] is None:
                         dbm.insert_sample(sample_data["name"], sample_data["seqhash"])
-                        self.log("sample_data:" + str(sample_data))
+                        # self.log("sample_data:" + str(sample_data))
                         # sample_data["refmolid"]
+                        print("-----####------ insert_alignment -----####------")
+                        print(sample_data["seqhash"], sample_data["sourceid"])
                         algnid = dbm.insert_alignment(
                             sample_data["seqhash"], sample_data["sourceid"]
                         )
@@ -666,8 +689,9 @@ class sonarCache:
                                 )
                     # paranoia test
                     if not sample_data["seqhash"] is None:
-                        self.paranoid_test(refseqs, sample_data, dbm)
-                    count_sample = count_sample + 1
+                        if self.paranoid_test(refseqs, sample_data, dbm):
+                            count_sample = count_sample + 1
+
                 except Exception as e:
                     logging.error("\n------- Fatal Error ---------")
                     print(traceback.format_exc())
@@ -678,7 +702,7 @@ class sonarCache:
                     sys.exit("Unknown import error")
         logging.info("Total sample insert:" + str(count_sample))
 
-    def paranoid_test(self, refseqs, sample_data, dbm):
+    def paranoid_test(self, refseqs, sample_data, dbm):  # noqa: C901
         """link to import_cached_samples
         The purpose of pranoid test is try to
         :Parameters:
@@ -722,24 +746,21 @@ class sonarCache:
             # list of ref DNA
             # orignal code-:list(refseqs[sample_data["sourceid"]])
             seq = list(refseqs[sample_data["sourceid"]])
-        print()
-        print("-----####------ paranoid_test -----####------")
+        # print()
+        # print("-----####------ paranoid_test -----####------")
+        # Ref sequence
         # print(seq)
-        print("-----####------ sample_data -----####------")
-        print(sample_data)
-        print("-----####------ sourceid -----####------")
-        print(sample_data["sourceid"])
-        print("-----####------  -----####------")
-        print(sample_data["name"], sample_data["sourceid"])
+        # print("-----####------ sourceid -----####------")
+        # print(sample_data["sourceid"])
+        # print("-----####------  -----####------")
+        # print(sample_data["name"], sample_data["sourceid"])
         # so we get original seq (reference) and then we insert varaints afterward
         # self.log("reference seqeunce:" + str(seq))
         prefix = ""
+        sample_name = sample_data["name"]
         # TODO: the problem arise here
-        for vardata in dbm.iter_dna_variants(
-            sample_data["name"], sample_data["sourceid"]
-        ):
+        for vardata in dbm.iter_dna_variants(sample_name, sample_data["sourceid"]):
             # get all variants from this source ID and sample name
-            # print("vardata" + (str(vardata)))
             if vardata["variant.alt"] == " ":
                 for i in range(vardata["variant.start"], vardata["variant.end"]):
                     seq[i] = ""
@@ -749,42 +770,82 @@ class sonarCache:
                 prefix = vardata["variant.alt"]
         print("-----####------ prefix -----####------")
         print(prefix)
+        # seq is now a restored version from variant dict.
         seq = prefix + "".join(seq)
 
         # self.log("sample seqeunce:" + str(seq))
 
         with open(sample_data["seq_file"], "r") as handle:
             orig_seq = handle.read()
-        print("Start to compare")
         if seq != orig_seq:
-            aligner = sonarAligner(outdir=self.basedir)
+            logging.warn(
+                f"Fail in sanity check: This {sample_name} sample will not be inserted to the database...,"
+                + "keeping an error log under the given cache directory."
+            )
+            try:
+                mismatch = [i for i, (a, b) in enumerate(zip(seq, orig_seq)) if a != b]
+                # for i in range(len(orig_seq)):
+                #    if orig_seq[i] != seq[i]:
+                #        _lin.append(i)
+                self.log("-----")
+                self.log("Fail:" + sample_name)
+                self.log("First position of mismatch:" + str(mismatch[0]))
+                self.log(seq[mismatch[0]])
+                self.log(orig_seq[mismatch[0]])
+                self.log(str(sample_data))
+            except Exception:
+                pass
 
-            qryfile = os.path.join(self.basedir, "restored_sam.fa")
-            reffile = os.path.join(self.basedir, "original_sam.fa")
+            with open(
+                os.path.join(self.basedir, f"{sample_name}.error.var"), "w+"
+            ) as handle:
+                for vardata in dbm.iter_dna_variants(
+                    sample_name, sample_data["sourceid"]
+                ):
+                    handle.write(str(vardata) + "\n")
+
+            qryfile = os.path.join(self.basedir, sample_name + ".error.restored_sam.fa")
+            reffile = os.path.join(self.basedir, sample_name + ".error.original_sam.fa")
 
             with open(qryfile, "w+") as handle:
                 handle.write(">seq\n" + seq)
             with open(reffile, "w+") as handle:
                 handle.write(">ref\n" + orig_seq)
+            output_paranoid = f"{sample_name}.fail-paranoid-alignment.fna"
+            if not os.path.exists(output_paranoid):
+                aligner = sonarAligner(outdir=self.basedir)
 
-            qry, ref = aligner.align(qryfile, reffile)
-            with open("paranoid.alignment.fna", "w+") as handle:
-                handle.write(
-                    ">original_"
-                    + sample_data["name"]
-                    + "\n"
-                    + ref
-                    + "\n>restored_"
-                    + sample_data["name"]
-                    + "\n"
-                    + qry
-                    + "\n"
-                )
+                qry, ref = aligner.align(qryfile, reffile)
+                with open(output_paranoid, "w+") as handle:
+                    handle.write(
+                        ">original_"
+                        + sample_name
+                        + "\n"
+                        + ref
+                        + "\n>restored_"
+                        + sample_name
+                        + "\n"
+                        + qry
+                        + "\n"
+                    )
+            logging.warn("See fail-paranoid-alignment.fna for alignment comparison")
+            # delete alignment
+            dbm.delete_alignment(
+                seqhash=sample_data["seqhash"], element_id=sample_data["sourceid"]
+            )
+            # delete variant.
+            #
+            """
             sys.exit(
                 "import error: original sequence of sample "
                 + sample_data["name"]
                 + " cannot be restored from stored genomic profile for sample (see paranoid.alignment.fna)"
             )
+
+            """
+            return False
+        else:
+            return True
 
 
 if __name__ == "__main__":

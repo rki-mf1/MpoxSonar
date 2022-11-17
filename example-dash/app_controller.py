@@ -6,9 +6,10 @@
 import sys
 from textwrap import fill
 
+import pandas as pd
+
 from mpxsonar.basics import sonarBasics
 from mpxsonar.dbm import sonarDBManager
-import pandas as pd
 
 
 # CLASS

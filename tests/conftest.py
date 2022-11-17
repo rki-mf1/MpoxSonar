@@ -1,9 +1,10 @@
 import os
 import tempfile
 
+import pytest
+
 from mpxsonar.basics import sonarBasics
 from mpxsonar.dbm import sonarDBManager
-import pytest
 
 
 # PYTEST FIXTURES
