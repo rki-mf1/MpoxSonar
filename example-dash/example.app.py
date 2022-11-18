@@ -1,6 +1,9 @@
 import argparse
 import os
 
+from app_controller import get_freq_mutation
+from app_controller import match_controller
+from app_controller import sonarBasicsChild
 from dash import Dash
 from dash import dash_table
 from dash import dcc
@@ -11,12 +14,16 @@ from dash import State
 import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
 
-from pages.app_controller import get_freq_mutation
-from pages.app_controller import match_controller
-from pages.app_controller import sonarBasicsChild
-from pages.libs.mpxsonar.src.mpxsonar.sonar import parse_args
+from mpxsonar.sonar import parse_args
 
 load_dotenv()
+
+
+# TODO: 1. complie the command before submit to the sonar.
+# 2. Finish Tooltip and all other information.
+# 3. Fix the link (more detail.)
+# 4. Bug in query -> --HOST "Test" not working need to handle the "" or ''
+
 # stylesheet with the .dbc class
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc_css])

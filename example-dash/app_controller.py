@@ -8,8 +8,8 @@ from textwrap import fill
 
 import pandas as pd
 
-from .libs.mpxsonar.src.mpxsonar.basics import sonarBasics
-from .libs.mpxsonar.src.mpxsonar.dbm import sonarDBManager
+from mpxsonar.basics import sonarBasics
+from mpxsonar.dbm import sonarDBManager
 
 
 # CLASS
@@ -121,11 +121,6 @@ def match_controller(args):  # noqa: C901
     reserved_props = {}
 
     with sonarDBManager(args.db, readonly=False, debug=args.debug) as dbm:
-        if args.reference:
-            if len(dbm.references) != 0 and args.reference not in [
-                d["accession"] for d in dbm.references
-            ]:
-                return f"{args.reference} reference is not available."
         for pname in dbm.properties:
             if hasattr(args, pname):
                 props[pname] = getattr(args, pname)
