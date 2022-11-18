@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from dash import Dash
 from dash import dash_table
@@ -8,12 +9,14 @@ from dash import Input
 from dash import Output
 from dash import State
 import dash_bootstrap_components as dbc
+from dotenv import load_dotenv
 
 from pages.app_controller import get_freq_mutation
 from pages.app_controller import match_controller
 from pages.app_controller import sonarBasicsChild
 from pages.libs.mpxsonar.src.mpxsonar.sonar import parse_args
 
+load_dotenv()
 # stylesheet with the .dbc class
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc_css])
@@ -21,68 +24,203 @@ custom_cmd_cards = html.Div(
     [
         dbc.Card(
             [
-                dbc.CardHeader([html.H3("MPXsonar command!")]),
-                dbc.CardBody(
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                [
-                                    html.Div(
-                                        [
-                                            "sonar: ",
-                                            dcc.Input(
-                                                id="my-input",
-                                                value="match --count",
-                                                type="text",
-                                                size="100",
-                                            ),
-                                        ]
-                                    ),
-                                    html.Br(),
-                                    html.Label("MPXSonar command:"),
-                                    html.Div(id="my-command", children=""),
-                                ]
-                            ),
-                            dbc.Col(
-                                [
-                                    html.Div(
-                                        dbc.Button(
-                                            id="submit-button-state",
-                                            n_clicks=0,
-                                            children="Submit",
-                                            color="primary",
-                                            className="mb-2",
-                                        ),
-                                    ),
-                                ]
-                            ),
-                        ]
-                    ),
-                ),
-            ],
-            className="mb-3",
-        ),
-        dbc.Card(
-            [
-                html.Label("Output:"),
-                html.Div(id="my-output", children=""),
-                html.Div(
+                dbc.CardHeader(
                     [
-                        dash_table.DataTable(
-                            id="my-output-df",
-                            page_current=0,
-                            page_size=10,
-                            style_data={
-                                "whiteSpace": "normal",
-                                "height": "auto",
-                            },
-                            style_table={"overflowX": "auto"},
-                            export_format="csv",
-                        ),
+                        html.H3(
+                            [
+                                "MPXSonar command!",
+                                dbc.Badge(
+                                    "Alpha-Test", className="ms-1", color="warning"
+                                ),
+                            ]
+                        )
                     ]
                 ),
+                dbc.CardBody(
+                    [
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        html.Div(
+                                            [
+                                                dcc.Input(
+                                                    id="my-input",
+                                                    value="match --count",
+                                                    type="text",
+                                                    size="100",
+                                                ),
+                                                dbc.FormText(
+                                                    "type the sonar command here and press submit (no need to put sonar at the begining)",
+                                                    color="secondary",
+                                                ),
+                                                html.Br(),
+                                                dbc.Row(
+                                                    [
+                                                        dbc.Col([]),
+                                                    ]  # row
+                                                ),
+                                            ]
+                                        ),
+                                    ]
+                                ),
+                                dbc.Col(
+                                    [
+                                        html.Div(
+                                            [
+                                                dbc.Button(
+                                                    id="submit-button-state",
+                                                    n_clicks=0,
+                                                    children="Submit",
+                                                    color="primary",
+                                                    className="mb-2",
+                                                ),
+                                            ]
+                                        ),
+                                    ]
+                                ),
+                            ]
+                        ),  # end row
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        dbc.Toast(
+                                            [
+                                                html.Div(id="my-command", children=""),
+                                                html.P(
+                                                    "-------",
+                                                    className="mb-0",
+                                                ),
+                                                html.P(
+                                                    "",
+                                                    className="mb-0",
+                                                ),
+                                            ],
+                                            header="Translate into Sonar command",
+                                            style={"margin-top": "15px"},
+                                        ),
+                                    ],
+                                    width=3,
+                                ),
+                                dbc.Col(
+                                    [
+                                        dbc.Accordion(
+                                            [
+                                                dbc.AccordionItem(
+                                                    [
+                                                        html.Ul(
+                                                            "1.The output will be showed in the below section."
+                                                        ),
+                                                        html.Ul(
+                                                            "2. Available reference: NC_063383.1, NC_003310.1, ON563414.3, MN648051.1, MT903344.1, ON585033.1, and ON568298.1 "
+                                                        ),
+                                                    ],
+                                                    title="Note>",
+                                                ),
+                                                dbc.AccordionItem(
+                                                    [
+                                                        html.P(
+                                                            "Currenlty we allow only 'match' and 'list-prop' commands."
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match -r NC_063383.1 --COUNTRY USA",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-1",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --profile  del:1-6",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --LENGTH >197120 <197200",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-2",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --sample ON585033.1",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "list-prop",
+                                                            color="white",
+                                                            text_color="secondary",
+                                                            className="border me-1",
+                                                            id="cmd-7",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Select all samples from reference 'NC_063383.1' and in USA",
+                                                            target="cmd-1",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Select all samples from sequence length in a range between 197120 and 197200 bp",
+                                                            target="cmd-2",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "List all properties",
+                                                            target="cmd-7",
+                                                        ),
+                                                    ],
+                                                    title="Example commands...",
+                                                ),
+                                                dbc.AccordionItem(
+                                                    html.Label(
+                                                        [
+                                                            "We are currently working to resolve bugs :)..Thank you for your understanding and patience while we work on solutions! "
+                                                            "Please visit ",
+                                                            html.A(
+                                                                "MPXSonar",
+                                                                href="https://github.com/rki-mf1/covsonar/tree/dev/cov2_mpire",
+                                                            ),
+                                                            " for more usage and detail.",
+                                                        ]
+                                                    ),
+                                                    title="FMI",
+                                                ),
+                                            ],
+                                            style={"margin-top": "15px"},
+                                        )
+                                    ],
+                                    width=8,
+                                ),
+                            ]
+                        ),  # end row
+                    ]
+                ),  # end card body
+                dbc.Card(  # Output
+                    [
+                        html.H4("Output:"),
+                        html.Hr(),
+                        html.Div(id="my-output", children=""),
+                        html.Div(
+                            [
+                                dash_table.DataTable(
+                                    id="my-output-df",
+                                    page_current=0,
+                                    page_size=10,
+                                    style_data={
+                                        "whiteSpace": "normal",
+                                        "height": "auto",
+                                    },
+                                    style_table={"overflowX": "auto"},
+                                    export_format="csv",
+                                ),
+                            ]
+                        ),
+                    ],
+                    body=True,
+                    className="mx-1 my-1",
+                ),  # end of Output
             ],
-            body=True,
+            className="mb-3",
         ),
     ]
 )
@@ -143,8 +281,8 @@ def update_output_sonar(n_clicks, commands):
         elif args.tool == "dev":
             get_freq_mutation(args)
         else:
-
             output = "This command is not available."
+
     except argparse.ArgumentError as exc:
         output = exc.message
     except SystemExit:
@@ -153,4 +291,6 @@ def update_output_sonar(n_clicks, commands):
 
 
 if __name__ == "__main__":
-    app.run_server(debug=True, host="127.0.0.1")
+    app.run_server(
+        debug=os.getenv("DEBUG"), host=os.getenv("SERVER"), port=os.getenv("PORT")
+    )
