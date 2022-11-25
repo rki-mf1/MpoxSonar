@@ -8,7 +8,7 @@ import plotly.express as px
 import pandas as pd
 
 
-dash.register_page(__name__)
+dash.register_page(__name__, path="/Tool")
 
 ####example data for example map######
 Sample_data = px.data.carshare()
