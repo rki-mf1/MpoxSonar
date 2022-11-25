@@ -18,8 +18,9 @@ app.layout = html.Div(
             [
                 html.Div(
                     dcc.Link(
-                        f"{page['name']} - {page['path']}", href=page["relative_path"]
+                        html.A(f"{page['name']}"), href=page["relative_path"], style={'color':'black', 'display':'inline-block'}
                     )
+                        #f"{page['name']}", href=page["relative_path"]
                 )
                 for page in dash.page_registry.values()
             ]
@@ -29,13 +30,17 @@ app.layout = html.Div(
         html.Br(),
         # style={'height':'99999999px;', 'width':'100%', 'bottom':'0', 'left':'0', 'position':'absolute'}
         html.Footer([
-            html.A("About MPXRadar", href="about.py", style={'color':'black', 'display':'inline-block'}),
+            html.A("About MPXRadar", href="About", style={'color':'black', 'display':'inline-block'}),
             html.Div(children="Supported by:", style={'float':'right', "margin-right": "250px"}),
             html.Br(),
-            html.A("Contact Us", href="contact.py", style={'color':'black'}),
+            html.A("Contact Us", href="Contact", style={'color':'black'}),
             html.Br(),
             html.A("Imprint", href="about.py", style={'color':'black'}),
-            
+            html.Br(),
+            html.A("App:", href="tool", style={'color':'black'}),
+
+
+
             html.Img(src=r'assets/denbi_cloud_logo.png',alt='Img_RKI', style={'float':'right', 'height':'15%', 'width':'15%'}),
             html.Div(children="on the basis of a decision"),
             html.Div(children="by the German Bundestag"),
