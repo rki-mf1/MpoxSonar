@@ -35,9 +35,9 @@ app.layout = html.Div(
             html.Br(),
             html.A("Contact Us", href="Contact", style={'color':'black'}),
             html.Br(),
-            html.A("Imprint", href="about.py", style={'color':'black'}),
+            html.A("Imprint", href="Home", style={'color':'black'}),
             html.Br(),
-            html.A("App:", href="tool", style={'color':'black'}),
+            html.A("App:", href="Tool", style={'color':'black'}),
 
 
 
