@@ -100,12 +100,23 @@ class sonarBasicsChild(sonarBasics):
                 rows[-1].append(dt)
                 rows[-1].append(dbm.properties[prop]["querytype"])
                 rows[-1].append(dbm.properties[prop]["standard"])
-
             # output = tabulate(rows, headers=cols, tablefmt="orgtbl")
             # output = output + "\n"
             # output = output + "DATE FORMAT" + "\n"
             output = pd.DataFrame(rows, columns=cols)
-            print(output)
+            # remove some column
+            output = output[
+                ~output["name"].isin(
+                    [
+                        "AA_PROFILE",
+                        "AA_X_PROFILE",
+                        "NUC_N_PROFILE",
+                        "NUC_PROFILE",
+                        "IMPORTED",
+                        "MODIFIED",
+                    ]
+                )
+            ]
         return output
 
 
