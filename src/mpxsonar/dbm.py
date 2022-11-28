@@ -781,6 +781,20 @@ class sonarDBManager:
         row = self.cursor.fetchone()
         return (row["id"], row["seqhash"]) if row else (None, None)
 
+    def get_alignment_by_seqhash(self, seqhash):
+        """
+        Returns the rowid of a sample based on the respective seqhash  If no
+        alignment of the given sequence hash, it will return empty list.
+
+        Check if there is a sample that doesn't align to any reference.
+        """
+        sql = "SELECT id FROM alignment WHERE seqhash = ? ;"
+        self.cursor.execute(sql, [seqhash])
+        row = self.cursor.fetchall()
+        if not row:
+            return []
+        return [x["id"] for x in row]
+
     def get_alignment_id(self, seqhash, element_id):
         """
         Returns the rowid of a sample based on the respective seqhash and element. If no
@@ -1405,6 +1419,204 @@ class sonarDBManager:
             valueList,
         )
 
+    def get_ref_ID_base_query_profile(  # noqa: 901
+        self, *vars, reference_accession=None
+    ):
+        iupac_nt_code = {
+            "A": set("A"),
+            "C": set("C"),
+            "G": set("G"),
+            "T": set("T"),
+            "R": set("AGR"),
+            "Y": set("CTY"),
+            "S": set("GCS"),
+            "W": set("ATW"),
+            "K": set("GTK"),
+            "M": set("ACM"),
+            "B": set("CGTB"),
+            "D": set("AGTD"),
+            "H": set("ACTH"),
+            "V": set("ACGV"),
+            "N": set("ACGTRYSWKMBDHVN"),
+            "n": set("N"),
+        }
+        iupac_aa_code = {
+            "A": set("A"),
+            "R": set("R"),
+            "N": set("N"),
+            "D": set("D"),
+            "C": set("C"),
+            "Q": set("Q"),
+            "E": set("E"),
+            "G": set("G"),
+            "H": set("H"),
+            "I": set("I"),
+            "L": set("L"),
+            "K": set("K"),
+            "M": set("M"),
+            "F": set("F"),
+            "P": set("P"),
+            "S": set("S"),
+            "T": set("T"),
+            "W": set("W"),
+            "Y": set("Y"),
+            "V": set("V"),
+            "U": set("U"),
+            "O": set("O"),
+            "B": set("DNB"),
+            "Z": set("EQZ"),
+            "J": set("ILJ"),
+            "Φ": set("VILFWYMΦ"),
+            "Ω": set("FWYHΩ"),
+            "Ψ": set("VILMΨ"),
+            "π": set("PGASπ"),
+            "ζ": set("STHNQEDKRζ"),
+            "+": set("KRH+"),
+            "-": set("DE-"),
+            "X": set("ARNDCQEGHILKMFPSTWYVUOBZJΦΩΨπζ+-X"),
+            "x": set("X"),
+        }
+        del_regex = re.compile(r"^(|[^:]+:)?([^:]+:)?del:(=?[0-9]+)(|-=?[0-9]+)?$")
+        snv_regex = re.compile(r"^(|[^:]+:)?([^:]+:)?([A-Z]+)([0-9]+)(=?[A-Zxn]+)$")
+
+        # set variants and generate sql
+        base_sql = "SELECT DISTINCT(`reference.id`) AS id FROM variantView WHERE "
+        intersect_sqls = []
+        intersect_vals = []
+        except_sqls = []
+        except_vals = []
+        for var in vars:
+            c = []  # condition
+            v = []  # variable
+
+            if var.startswith("^"):
+                var = var[1:]
+                negate = True
+            else:
+                negate = False
+
+            # variant typing
+            if match := snv_regex.match(var):
+                snv = True
+            elif match := del_regex.match(var):
+                snv = False
+            else:
+                logging.error("'" + var + "' is not a valid variant definition.")
+                sys.exit(
+                    "Please check the query statement,(IUPAC AA/NT codes, NT format(e.g. A3451T), AA format(e.g. S:N501Y))"
+                )
+            # set molecule
+            if match.group(1):
+                c.append("`molecule.symbol` = ?")
+                v.append(match.group(1)[:-1])
+            else:
+                c.append("`molecule.standard` = ?")
+                v.append(1)
+
+            # set element
+            if match.group(2):
+                c.append("`element.type` = ?")
+                v.append("cds")
+                c.append("`element.symbol` = ?")
+                v.append(match.group(2)[:-1])
+                code = iupac_aa_code
+            else:
+                c.append("`element.standard` = ?")
+                v.append(1)
+                code = iupac_nt_code
+
+            # snp  handling
+            if snv:
+                c.append("`variant.start` = ?")
+                v.append(int(match.group(4)) - 1)
+                c.append("`variant.end` = ?")
+                v.append(int(match.group(4)))
+                c.append("`variant.ref` = ?")
+                v.append(match.group(3))
+                try:
+                    # explicit alternate allele
+                    if match.group(5).startswith("="):
+                        c.append("`variant.alt` = ?")
+                        v.append(match.group(5)[1:])
+
+                    # potentially ambiguous alternate snp
+                    elif len(match.group(5)) == 1:
+                        l = len(code[match.group(5)])
+                        if l == 1:
+                            match_group5 = (
+                                match.group(5).upper()
+                                if match.group(5) == "n" or match.group(5) == "x"
+                                else match.group(5)
+                            )
+                            c.append("`variant.alt` = ?")
+                            v.append(match_group5)
+                        else:
+                            c.append("`variant.alt` IN (" + ", ".join(["?"] * l) + ")")
+                            v.extend(code[match.group(5)])
+
+                    # potentially ambiguous alternate insert
+                    else:
+                        a = [
+                            "".join(x)
+                            for x in itertools.product(
+                                *[code[x] for x in match.group(5)]
+                            )
+                        ]
+                        l = len(a)
+                        if l == 1:
+                            a = a.upper() if a == "n" or a == "x" else a
+                            c.append("`variant.alt` = ?")
+                            v.extend(a)
+                        else:
+                            c.append("`variant.alt` IN (" + ", ".join(["?"] * l) + ")")
+                            v.extend(a)
+                except KeyError:
+                    logging.error("'" + var + "' is not a valid input")
+                    sys.exit(
+                        "Please check the query statement,(IUPAC AA/NT codes, NT format(e.g. A3451T), AA format(e.g. S:N501Y))"
+                    )
+            # deletion handling
+            else:
+                s = match.group(3)
+                e = match.group(4)[1:]
+                # if del:=1-=60 meanse exact search del:1-60
+                # del:1-60 means range search--> it could be del:1-11 or del:1-60
+                if s.startswith("="):
+                    s = s[1:]
+                    c.append("`variant.start` = ?")
+                else:
+                    c.append("`variant.start` >= ?")
+
+                if e.startswith("="):
+                    e = e[1:]
+                    c.append("`variant.end` = ?")
+                else:
+                    c.append("`variant.end` <= ?")
+                v.append(int(s) - 1)
+                v.append(int(e))
+
+                c.append("`variant.alt` = ?")
+                v.append(" ")
+
+            # assemble sub-sql
+            if negate:
+                except_sqls.append(base_sql + " AND ".join(c))
+                except_vals.extend(v)
+            else:
+                intersect_sqls.append(base_sql + " AND ".join(c))
+                intersect_vals.extend(v)
+
+        # assemble final sql
+        if not intersect_sqls:
+            intersect_sqls = [base_sql + "1"]
+        # Change this
+        sql = " INTERSECT ".join(intersect_sqls)
+
+        if except_sqls:
+            sql += " EXCEPT " + " EXCEPT ".join(except_sqls)
+
+        return sql, intersect_vals + except_vals
+
     def query_profile(self, *vars, reference_accession=None):  # noqa: C901
         iupac_nt_code = {
             "A": set("A"),
@@ -1563,18 +1775,19 @@ class sonarDBManager:
             else:
                 s = match.group(3)
                 e = match.group(4)[1:]
-
+                # if del:=1-=60 meanse exact search del:1-60
+                # del:1-60 means range search--> it could be del:1-11 or del:1-60
                 if s.startswith("="):
                     s = s[1:]
                     c.append("`variant.start` = ?")
                 else:
-                    c.append("`variant.start` <= ?")
+                    c.append("`variant.start` >= ?")
 
                 if e.startswith("="):
                     e = e[1:]
                     c.append("`variant.end` = ?")
                 else:
-                    c.append("`variant.end` >= ?")
+                    c.append("`variant.end` <= ?")
                 v.append(int(s) - 1)
                 v.append(int(e))
 
@@ -1600,6 +1813,53 @@ class sonarDBManager:
 
         return sql, intersect_vals + except_vals
 
+    def get_ref_variant_ID(self, profiles, reference_accession=None):  # noqa: 901
+        """Tmp patch
+        Get reference ID based on variant profile.
+
+        Return string of selected;
+        """
+
+        profile_sqls = []
+        profile_vals = []
+        for profile in profiles:
+
+            sql, val = self.get_ref_ID_base_query_profile(
+                *profile, reference_accession=reference_accession
+            )
+            profile_sqls.append(sql)
+            profile_vals.extend(val)
+
+        if len(profiles) == 1:
+            profile_sqls = profile_sqls[0]
+        elif len(profiles) > 1:
+            profile_sqls = " UNION ".join(
+                [
+                    "SELECT * FROM (" + x + ") t" + str(i)
+                    for i, x in enumerate(profile_sqls)
+                ]
+            )
+        else:
+            profile_sqls = ""
+        if self.debug:
+            logging.info(f"Reference sqls: {profile_sqls}")
+            logging.info(f"Reference vals: {profile_vals}")
+        if profile_sqls == "":
+            logging.info("Filtered Reference ID: none")
+            return []
+
+        self.cursor.execute(profile_sqls, profile_vals)
+        variant_ids = self.cursor.fetchall()
+        if not variant_ids:
+            logging.info("Filtered Reference ID: none")
+            return []
+
+        # TODO: deduplicate IDs
+        print(variant_ids)
+        # remove None value incase there is the one, however, we should fix it at sql command.
+        variant_ids = [str(i["id"]) for i in variant_ids if i["id"] is not None]
+        return variant_ids
+
     def match(  # noqa: 901
         self,
         *profiles,
@@ -1611,8 +1871,9 @@ class sonarDBManager:
         format="csv",
     ):
         """
-        # TODO check if reference is not exit.
-        # get all alignment
+        # TODO: 1. check if reference is not exit then we get all alignment.
+        # 2. Match query or sql or step can improve.
+        # 3.
         Note:
             If reference accession is None, we will query all varaints with all references.
         Return:
@@ -1672,7 +1933,7 @@ class sonarDBManager:
             include_lin = _tmp_include_lin
             properties[lineage_col] = include_lin
         if self.debug:
-            logging.info(f"list all prop.:{properties}")
+            logging.info(f"List all prop.:{properties}")
         # if properties are present in query
         if properties:
             for pname, vals in properties.items():
@@ -1683,7 +1944,7 @@ class sonarDBManager:
 
         property_sqls = " INTERSECT ".join(property_sqls)
         if self.debug:
-            logging.info(f"SQL Properties:{property_sqls}")
+            logging.info(f"Properties in Query: {property_sqls}")
 
         # collecting sqls for genomic profile based filtering
         profile_sqls = []
@@ -1700,13 +1961,27 @@ class sonarDBManager:
             profile_sqls = profile_sqls[0]
         elif len(profiles) > 1:
             profile_sqls = " UNION ".join(
-                ["SELECT * FROM (" + x + ")" for x in profile_sqls]
+                [
+                    "SELECT * FROM (" + x + ") t" + str(i)
+                    for i, x in enumerate(profile_sqls)
+                ]
             )
         else:
             profile_sqls = ""
         if self.debug:
-            logging.info(f"profile_sqls:{profile_sqls}")
+            logging.info(f"Profile sqls: {profile_sqls}")
+            logging.info(f"Profile vals: {profile_vals}")
 
+        variant_id_list = self.get_ref_variant_ID(profiles)
+        if len(variant_id_list) > 0:
+            selected_variant_ids = ", ".join([str(x) for x in variant_id_list])
+            logging.info(f"Selected Reference ID: {selected_variant_ids}")
+            varinat_condition_stm = (
+                " AND `reference.id` IN (" + selected_variant_ids + ")"
+            )
+        else:
+            varinat_condition_stm = ""
+        # ------
         if property_sqls and profile_sqls:
             if len(profiles) > 1:
                 sample_selection_sql = (
@@ -1738,14 +2013,16 @@ class sonarDBManager:
 
                 # we need to check if ref accession number is given.
                 if reference_accession:
-                    sample_selection_sql = "SELECT DISTINCT(`sample.id`) AS id FROM alignmentView WHERE `reference.accession`={}".format(
+                    sample_selection_sql = "SELECT DISTINCT(`sample.id`) AS id  FROM alignmentView WHERE `reference.accession`={}".format(
                         '"' + reference_accession + '"'
                     )
                 else:
                     # should we use only sample or all alignment
                     sample_selection_sql = "SELECT id FROM sample"
-                if self.debug:
-                    logging.info(f"sample_selection_sql: {sample_selection_sql}")
+
+        if self.debug:
+            logging.info(f"Sample selection in sql: {sample_selection_sql}")
+
         genome_element_condition = [
             str(x) for x in self.get_element_ids(reference_accession, "source")
         ]
@@ -1760,6 +2037,8 @@ class sonarDBManager:
             m = ""
             # CurrentSolution: we add reference column instead
             # m = ' `molecule.symbol`, "@" , '
+        if self.debug:
+            logging.info(f"Genome element in sql: {genome_element_condition}")
 
         if not showNX:
             nn = ' AND `variant.alt` != "N" '
@@ -1793,22 +2072,32 @@ class sonarDBManager:
 
             # select samples
             sql = sample_selection_sql
-
+            if self.debug:
+                logging.info(
+                    f"Before execute 'Select Samples': {sql} with {property_vals + profile_vals}"
+                )
+            # this execution is based on the samples and given profiles.
             self.cursor.execute(sql, property_vals + profile_vals)
             sample_ids = self.cursor.fetchall()
             if not sample_ids:
                 return []
 
+            # TODO: deduplicate IDs
             selected_sample_ids = ", ".join([str(x["id"]) for x in sample_ids])
+            if self.debug:
+                logging.info(f" 'Selected Samples': {selected_sample_ids}")
             # rows = {x['id']: {"id": x['id']} for x in sample_ids}
             # print(len(sample_ids))
 
             #
             # Current solution:
-            # After we got the selected IDs
+            # After we got the selected IDs (filter by profiles)
             # We use two-stage query and then combine both results together to produce final result
-            # 1. Query properties
-            # 2. Query  AA/NT profile
+            # 1. Query: get all properties based on selected IDs
+            # 2. Query: get all AA/NT profile based on selected IDs and reference IDs
+            # Finally, we combine 1. and 2. based on outer join.
+
+            # output columns
             fields = ["`sample.name`"] + ["`" + x + "`" for x in self.properties]
             sql = "SELECT name as " + ", ".join(fields) + "FROM sample "
 
@@ -1840,42 +2129,44 @@ class sonarDBManager:
             _1_rows = self.cursor.fetchall()
 
             _2_final_sql = (
-                " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE \
-                    FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
+                " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE "
+                + " FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
                 + m
-                + "`variant.label`) AS _profile \
-                    FROM variantView WHERE `sample.id` IN ("
+                + " `variant.label`) AS _profile, `variant.id`"
+                + "FROM variantView WHERE `sample.id` IN ("
                 + selected_sample_ids
                 + ") AND "
                 + genome_element_condition
                 + nn
-                + " GROUP BY `sample.id`, reference_accession) nt_profile, \
-                   ( SELECT  `sample.id`, `reference.accession` AS reference_accession , group_concat("
+                + varinat_condition_stm
+                + " GROUP BY `sample.id`, reference_accession) nt_profile, "
+                + " ( SELECT  `sample.id`, `reference.accession` AS reference_accession , group_concat("
                 + m
-                + '`element.symbol`, ":" ,`variant.label`) AS _profile \
-                              FROM variantView WHERE `sample.id` IN ('
+                + ' `element.symbol`, ":" ,`variant.label`) AS _profile, `variant.id`'
+                + " FROM variantView WHERE `sample.id` IN ( "
                 + selected_sample_ids
-                + ") "
+                + ")"
                 + cds_element_condition
                 + nx
-                + " GROUP BY `sample.id`, reference_accession \
-                            ) aa_profile, \
-                            `sample` \
-                    WHERE nt_profile.`sample.id` = aa_profile.`sample.id` AND  nt_profile.`sample.id` = `sample`.id  \
-                        AND nt_profile.reference_accession = aa_profile.reference_accession \
-                          AND `sample`.id  IN ("
+                + varinat_condition_stm
+                + " GROUP BY `sample.id`, reference_accession ) aa_profile, `sample` "
+                + " WHERE nt_profile.`sample.id` = aa_profile.`sample.id` AND  nt_profile.`sample.id` = `sample`.id  "
+                + " AND nt_profile.reference_accession = aa_profile.reference_accession "
+                + " AND `sample`.id  IN ("
                 + selected_sample_ids
                 + ")"
             )
+
             if self.debug:
                 logging.info("Second SQL")
                 logging.info(_2_final_sql)
+
             self.cursor.execute(_2_final_sql)
             _2_rows = self.cursor.fetchall()
             if len(_1_rows) != len(_2_rows):
-                logging.warning("Detects something suspicious in matching process.")
+                # logging.warning("Detects something suspicious in matching process.")
                 logging.warning(
-                    "Mismatch records; %d and %d between meta-info and fasta"
+                    "Return records; between %d meta-info and %d sequence alignment"
                     % (len(_1_rows), len(_2_rows))
                 )
                 logging.warning(
@@ -1906,6 +2197,7 @@ class sonarDBManager:
             # )
 
             # _1_rows = list(filter(None, _1_rows))
+
             # ------ alternative solution convert to df
             df_1 = pd.DataFrame(_1_rows)
             df_1.sort_values(by=["sample.name"], inplace=True)
@@ -1915,7 +2207,9 @@ class sonarDBManager:
             df_2 = pd.DataFrame(_2_rows)
             df_2.sort_values(by=["sample.name"], inplace=True)
             if self.debug:
+                logging.debug(df_2.columns)
                 logging.debug(df_2["sample.name"])
+
             """
             merge_df = pd.merge(
                 df_1,
@@ -1959,6 +2253,7 @@ class sonarDBManager:
             return _1_rows  # list(rows.values())
 
         elif format == "count":
+            # TODO: currently we count only samples not the sample-aligned wise.
             logging.info("'--count' will return only unique sample.")
             sql = (
                 "SELECT COUNT(DISTINCT s2p.id) AS `count` FROM ("
@@ -1976,6 +2271,10 @@ class sonarDBManager:
             )
         else:
             sys.exit("error: '" + format + "' is not a valid output format")
+        if self.debug:
+            logging.info(
+                f"Before execute 'Select Samples': {sql} with {property_vals + profile_vals}"
+            )
         self.cursor.execute(sql, property_vals + profile_vals)
         return self.cursor
 

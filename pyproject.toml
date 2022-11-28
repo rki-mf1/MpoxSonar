@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mpxsonar"
-version = "0.3.8"
+version = "0.4.2"
 description = "A database-driven system for handling genomic sequences and screening genomic profiles."
 authors = ["Stephan Fuchs <FuchsS@rki.de>", "Kunaphas Kongkitimanon <KongkitimanonK@rki.de>", "Matthew Huska <HuskaM@rki.de>"]
 license = "GPL3"
@@ -21,6 +21,7 @@ requests = "^2.28.0"
 python-dotenv = "^0.21.0"
 mariadb = "^1.1.4"
 psutil = "^5.9.3"
+dateparser = "^1.1.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"
