@@ -2186,11 +2186,7 @@ class sonarDBManager:
                 + selected_sample_ids
                 + ")"
             )
-<<<<<<< HEAD
-
-=======
             """
->>>>>>> 2744ff3e0ca76d9973c2788ca0f02477841829bb
             if self.debug:
                 logging.info("Second SQL")
                 logging.info(_2_final_sql)
