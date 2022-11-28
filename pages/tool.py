@@ -10,6 +10,9 @@ import pandas as pd
 
 dash.register_page(__name__, path="/Tool")
 
+url = "https://raw.githubusercontent.com/hflabs/city/master/city.csv"
+geodata = pd.read_csv(url)
+
 ####example data for example map######
 Sample_data = px.data.carshare()
 
@@ -18,6 +21,21 @@ fig = px.scatter_mapbox(
     lat="centroid_lat",
     lon="centroid_lon",
     color="peak_hour", size="car_hours",
+    color_continuous_scale=px.colors.cyclical.IceFire,
+    size_max=15,
+    zoom=10,
+    mapbox_style="carto-positron"
+)
+#######################################
+
+####example data for example 2map######
+Sample_data = px.data.carshare()
+
+fig_ = px.scatter_mapbox(
+    geodata,
+    lat="geo_lat",
+    lon="geo_lon",
+    size="population",
     color_continuous_scale=px.colors.cyclical.IceFire,
     size_max=15,
     zoom=10,
@@ -93,7 +111,7 @@ layout = html.Div(
                 ),
                 html.Br(),
                 html.H1("Here is a map"),
-                dcc.Graph(figure=fig),
+                dcc.Graph(figure=fig_),
                 html.Br(),
                 html.Div(
                     [
