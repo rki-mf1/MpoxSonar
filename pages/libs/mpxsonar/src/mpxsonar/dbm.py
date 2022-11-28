@@ -1855,7 +1855,7 @@ class sonarDBManager:
             return []
 
         # TODO: deduplicate IDs
-        print(variant_ids)
+        # print(variant_ids)
         # remove None value incase there is the one, however, we should fix it at sql command.
         variant_ids = [str(i["id"]) for i in variant_ids if i["id"] is not None]
         return variant_ids
@@ -2128,7 +2128,37 @@ class sonarDBManager:
             self.cursor.execute(_1_final_sql)
             _1_rows = self.cursor.fetchall()
 
+            # since some samples didn't return AA mutation., so we use LEFT JOIN to NT.
+            # ... and also remove unnecessay 'WHERE IN SAMPLE_IDs'
             _2_final_sql = (
+                " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE "
+                + " FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
+                + m
+                + " `variant.label`) AS _profile, `variant.id`"
+                + "FROM variantView WHERE `sample.id` IN ("
+                + selected_sample_ids
+                + ") AND "
+                + genome_element_condition
+                + nn
+                + varinat_condition_stm
+                + " GROUP BY `sample.id`, reference_accession) nt_profile "
+                + " LEFT JOIN "
+                + "( SELECT  `sample.id`, `reference.accession` AS reference_accession , group_concat("
+                + m
+                + ' `element.symbol`, ":" ,`variant.label`) AS _profile, `variant.id`'
+                + " FROM variantView WHERE `sample.id` IN ( "
+                + selected_sample_ids
+                + ")"
+                + cds_element_condition
+                + nx
+                + varinat_condition_stm
+                + " GROUP BY `sample.id`, reference_accession ) aa_profile "
+                + " ON nt_profile.`sample.id` = aa_profile.`sample.id` AND nt_profile.reference_accession =aa_profile.reference_accession "
+                + ", `sample` "
+                + " WHERE  nt_profile.`sample.id` = `sample`.id "
+            )
+            """
+                        2_final_sql = (
                 " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE "
                 + " FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
                 + m
@@ -2156,7 +2186,11 @@ class sonarDBManager:
                 + selected_sample_ids
                 + ")"
             )
+<<<<<<< HEAD
 
+=======
+            """
+>>>>>>> 2744ff3e0ca76d9973c2788ca0f02477841829bb
             if self.debug:
                 logging.info("Second SQL")
                 logging.info(_2_final_sql)

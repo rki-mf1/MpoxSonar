@@ -68,7 +68,7 @@ def download(save_path):  # noqa: C901
             record = Entrez.read(handle)
             # setup cache
             time.sleep(1)
-            print(record)
+            # print(record)
             id_list = record["IdList"]
             search_results = Entrez.read(Entrez.epost(DB, id=",".join(id_list)))
             webenv = search_results["WebEnv"]
@@ -172,7 +172,7 @@ def generate_outputfiles(save_download_path, save_final_path):  # noqa: C901
         "LENGTH",
         "COUNTRY",
         "GEO_LOCATION",
-        "NCBI_RELEASE_DATE",
+        "RELEASE_DATE",
         "COLLECTION_DATE",
         "SEQ_TECH",
     ]
