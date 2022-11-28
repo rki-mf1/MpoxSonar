@@ -39,8 +39,8 @@ class sonarAligner(object):
             exit(errtype + ": " + msg)
 
     def cal_seq_length(self, seq, msg=""):
-        lower_bound = int((len(seq) * 97) / 100)
-        upper_bound = int((len(seq) * 103) / 100)
+        lower_bound = (len(seq) * 97) / 100
+        upper_bound = (len(seq) * 103) / 100
         self.log(seq)
         self.log(msg + "=" + " LO:" + str(lower_bound) + "UP:" + str(upper_bound))
         self.log("#----------#")
@@ -61,7 +61,7 @@ class sonarAligner(object):
                 # datafile="EDNAFULL", auto set by strecher
             )
             stdout, stderr = cline()
-            self.cal_seq_length(stdout[0:20], msg="stdout")
+            # self.cal_seq_length(stdout[0:20], msg="stdout")
             # find the fist position of '\n' to get seq1
             s1 = stdout.find("\n") + 1
             # find the start of second sequence position

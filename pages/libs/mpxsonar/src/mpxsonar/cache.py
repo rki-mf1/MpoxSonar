@@ -15,6 +15,7 @@ import sys
 from tempfile import mkdtemp
 import traceback
 
+from mpire import WorkerPool
 import pandas as pd
 from tqdm import tqdm
 
@@ -115,13 +116,15 @@ class sonarCache:
         self.algn_dir = os.path.join(self.basedir, "algn")
         self.var_dir = os.path.join(self.basedir, "var")
         self.ref_dir = os.path.join(self.basedir, "ref")
-
+        self.error_dir = os.path.join(self.basedir, "error")
         os.makedirs(self.basedir, exist_ok=True)
         os.makedirs(self.seq_dir, exist_ok=True)
         os.makedirs(self.ref_dir, exist_ok=True)
         # os.makedirs(self.algn_dir, exist_ok=True)
         os.makedirs(self.var_dir, exist_ok=True)
         os.makedirs(self.sample_dir, exist_ok=True)
+        os.makedirs(self.error_dir, exist_ok=True)
+
         self._samplefiles = set()
         self._samplefiles_to_profile = set()
         self._refs = set()
@@ -575,7 +578,7 @@ class sonarCache:
                     self.cache_sample(**data)
         if failed_list:
             self.log(
-                "Sample will not be processed due to viloate max/min seq lenght rule (+-3%):"
+                "Sample will not be processed due to violate max/min seq lenght rule (+-3%):"
                 + str(failed_list),
             )
             logging.warn("Fail max/min seq lenght rule:" + str(failed_list))
@@ -638,7 +641,8 @@ class sonarCache:
             data["varfile"] = None
         return data
 
-    def import_cached_samples(self):  # noqa: C901
+    def import_cached_samples(self, threads):  # noqa: C901
+        list_fail_samples = []
         refseqs = {}
         count_sample = 0
         with sonarDBManager(self.db, readonly=False, debug=self.debug) as dbm:
@@ -650,9 +654,9 @@ class sonarCache:
                 bar_format="{desc} {percentage:3.0f}% [{n_fmt}/{total_fmt}, {elapsed}<{remaining}, {rate_fmt}{postfix}]",
                 disable=self.disable_progress,
             ):
-                print("\n")
-                print("-----####------ sample_data -----####------")
-                print(sample_data)
+                # print("\n")
+                # print("-----####------ sample_data -----####------")
+                # print(sample_data)
 
                 try:
                     # nucleotide level import
@@ -660,8 +664,8 @@ class sonarCache:
                         dbm.insert_sample(sample_data["name"], sample_data["seqhash"])
                         # self.log("sample_data:" + str(sample_data))
                         # sample_data["refmolid"]
-                        print("-----####------ insert_alignment -----####------")
-                        print(sample_data["seqhash"], sample_data["sourceid"])
+                        # print("-----####------ insert_alignment -----####------")
+                        # print(sample_data["seqhash"], sample_data["sourceid"])
                         algnid = dbm.insert_alignment(
                             sample_data["seqhash"], sample_data["sourceid"]
                         )
@@ -689,9 +693,10 @@ class sonarCache:
                                 )
                     # paranoia test
                     if not sample_data["seqhash"] is None:
-                        if self.paranoid_test(refseqs, sample_data, dbm):
-                            count_sample = count_sample + 1
-
+                        paranoid_dict = self.paranoid_check(refseqs, sample_data, dbm)
+                        if paranoid_dict:
+                            list_fail_samples.append(paranoid_dict)
+                        count_sample = count_sample + 1
                 except Exception as e:
                     logging.error("\n------- Fatal Error ---------")
                     print(traceback.format_exc())
@@ -700,7 +705,128 @@ class sonarCache:
                     print("\n During insert:")
                     pp.pprint(sample_data)
                     sys.exit("Unknown import error")
-        logging.info("Total sample insert:" + str(count_sample))
+        if list_fail_samples:
+            logging.info(
+                f"Start paranoid alignment on {len(list_fail_samples)} sample."
+            )
+            self.paranoid_align_multi(list_fail_samples, threads)
+        count_sample = count_sample - len(list_fail_samples)
+        logging.info("Total sample insert: " + str(count_sample))
+
+    def _align(self, output_paranoid, qryfile, reffile, sample_name):
+        # print(output_paranoid, qryfile, reffile, sample_name)
+
+        if not os.path.exists(output_paranoid):
+            aligner = sonarAligner(outdir=self.basedir)
+
+            qry, ref = aligner.align(qryfile, reffile)
+            with open(output_paranoid, "w+") as handle:
+                handle.write(
+                    ">original_"
+                    + sample_name
+                    + "\n"
+                    + ref
+                    + "\n>restored_"
+                    + sample_name
+                    + "\n"
+                    + qry
+                    + "\n"
+                )
+        logging.warn(f"See {output_paranoid} for alignment comparison.")
+
+    def paranoid_align_multi(self, list_fail_samples, threads):  # noqa: C901
+        l = len(list_fail_samples)
+        with WorkerPool(n_jobs=threads, start_method="fork") as pool, tqdm(
+            position=0,
+            leave=True,
+            desc="paranoid align...",
+            total=l,
+            unit="seqs",
+            bar_format="{desc} {percentage:3.0f}% [{n_fmt}/{total_fmt}, {elapsed}<{remaining}, {rate_fmt}{postfix}]",
+        ) as pbar:
+            for _ in pool.imap_unordered(self._align, list_fail_samples):
+                pbar.update(1)
+
+    def paranoid_check(self, refseqs, sample_data, dbm):  # noqa: C901
+        """link to import_cached_samples
+
+        return dict.
+        """
+        try:
+            seq = list(refseqs[sample_data["sourceid"]])
+        except Exception:
+            refseqs[sample_data["sourceid"]] = list(
+                dbm.get_sequence(sample_data["sourceid"])
+            )
+            seq = list(refseqs[sample_data["sourceid"]])
+        prefix = ""
+
+        sample_name = sample_data["name"]
+        for vardata in dbm.iter_dna_variants(sample_name, sample_data["sourceid"]):
+            if vardata["variant.alt"] == " ":
+                for i in range(vardata["variant.start"], vardata["variant.end"]):
+                    seq[i] = ""
+            elif vardata["variant.start"] >= 0:
+                seq[vardata["variant.start"]] = vardata["variant.alt"]
+            else:
+                prefix = vardata["variant.alt"]
+        ref_name = sample_data["refmol"]
+        # seq is now a restored version from variant dict.
+        seq = prefix + "".join(seq)
+        with open(sample_data["seq_file"], "r") as handle:
+            orig_seq = handle.read()
+
+        if seq != orig_seq:
+            self.log("[Paranoid-test] Fail sample:" + sample_name)
+            logging.warn(
+                f"Fail in sanity check: This {sample_name} sample will not be inserted to the database...,"
+                + "keeps an error log under the given cache directory."
+            )
+            if not os.path.exists(self.error_dir):
+                os.makedirs(self.error_dir)
+            with open(
+                os.path.join(self.error_dir, f"{sample_name}.error.var"), "w+"
+            ) as handle:
+                for vardata in dbm.iter_dna_variants(
+                    sample_name, sample_data["sourceid"]
+                ):
+                    handle.write(str(vardata) + "\n")
+
+            qryfile = os.path.join(
+                self.error_dir, sample_name + ".error.restored_sam.fa"
+            )
+            reffile = os.path.join(
+                self.error_dir, sample_name + ".error.original_sam.fa"
+            )
+
+            with open(qryfile, "w+") as handle:
+                handle.write(">seq\n" + seq)
+            with open(reffile, "w+") as handle:
+                handle.write(">ref\n" + orig_seq)
+            output_paranoid = os.path.join(
+                self.basedir, f"{sample_name}.withref.{ref_name}.fail-paranoid.fna"
+            )
+
+            dbm.delete_alignment(
+                seqhash=sample_data["seqhash"], element_id=sample_data["sourceid"]
+            )
+            # delete sample  if this sample didnt have any alignment and variant??.
+            _return_ali_id = dbm.get_alignment_by_seqhash(
+                seqhash=sample_data["seqhash"]
+            )
+            if len(_return_ali_id) == 0:
+                logging.warn("Sonar will delete a sample with empty alignment")
+                dbm.delete_samples(sample_name)
+                dbm.delete_seqhash(sample_data["seqhash"])
+
+            return {
+                "sample_name": sample_name,
+                "qryfile": qryfile,
+                "reffile": reffile,
+                "output_paranoid": output_paranoid,
+            }
+        else:
+            return {}
 
     def paranoid_test(self, refseqs, sample_data, dbm):  # noqa: C901
         """link to import_cached_samples
@@ -768,8 +894,9 @@ class sonarCache:
                 seq[vardata["variant.start"]] = vardata["variant.alt"]
             else:
                 prefix = vardata["variant.alt"]
-        print("-----####------ prefix -----####------")
-        print(prefix)
+        # print("-----####------ prefix -----####------")
+        # print(prefix)
+        ref_name = sample_data["refmol"]
         # seq is now a restored version from variant dict.
         seq = prefix + "".join(seq)
 
@@ -780,7 +907,7 @@ class sonarCache:
         if seq != orig_seq:
             logging.warn(
                 f"Fail in sanity check: This {sample_name} sample will not be inserted to the database...,"
-                + "keeping an error log under the given cache directory."
+                + "keeps an error log under the given cache directory."
             )
             try:
                 mismatch = [i for i, (a, b) in enumerate(zip(seq, orig_seq)) if a != b]
@@ -788,7 +915,7 @@ class sonarCache:
                 #    if orig_seq[i] != seq[i]:
                 #        _lin.append(i)
                 self.log("-----")
-                self.log("Fail:" + sample_name)
+                self.log("Fail sample:" + sample_name)
                 self.log("First position of mismatch:" + str(mismatch[0]))
                 self.log(seq[mismatch[0]])
                 self.log(orig_seq[mismatch[0]])
@@ -811,7 +938,7 @@ class sonarCache:
                 handle.write(">seq\n" + seq)
             with open(reffile, "w+") as handle:
                 handle.write(">ref\n" + orig_seq)
-            output_paranoid = f"{sample_name}.fail-paranoid-alignment.fna"
+            output_paranoid = f"{sample_name}.withref.{ref_name}.fail-paranoid.fna"
             if not os.path.exists(output_paranoid):
                 aligner = sonarAligner(outdir=self.basedir)
 
@@ -828,12 +955,20 @@ class sonarCache:
                         + qry
                         + "\n"
                     )
-            logging.warn("See fail-paranoid-alignment.fna for alignment comparison")
-            # delete alignment
+            logging.warn(f"See {output_paranoid} for alignment comparison.")
+            # delete alignment, sourceid = reference id
             dbm.delete_alignment(
                 seqhash=sample_data["seqhash"], element_id=sample_data["sourceid"]
             )
-            # delete variant.
+            # delete sample  if this sample didnt have any alignment and variant??.
+            #
+            _return_ali_id = dbm.get_alignment_by_seqhash(
+                seqhash=sample_data["seqhash"]
+            )
+            if len(_return_ali_id) == 0:
+                logging.warn("Sonar will delete a sample with empty alignment")
+                dbm.delete_samples(sample_name)
+                dbm.delete_seqhash(sample_data["seqhash"])
             #
             """
             sys.exit(

@@ -1,9 +1,6 @@
 import argparse
 import os
 
-from app_controller import get_freq_mutation
-from app_controller import match_controller
-from app_controller import sonarBasicsChild
 from dash import Dash
 from dash import dash_table
 from dash import dcc
@@ -14,16 +11,12 @@ from dash import State
 import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
 
-from mpxsonar.sonar import parse_args
+from pages.app_controller import get_freq_mutation
+from pages.app_controller import match_controller
+from pages.app_controller import sonarBasicsChild
+from pages.libs.mpxsonar.src.mpxsonar.sonar import parse_args
 
 load_dotenv()
-
-
-# TODO: 1. complie the command before submit to the sonar.
-# 2. Finish Tooltip and all other information.
-# 3. Fix the link (more detail.)
-# 4. Bug in query -> --HOST "Test" not working need to handle the "" or ''
-
 # stylesheet with the .dbc class
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc_css])
@@ -138,10 +131,32 @@ custom_cmd_cards = html.Div(
                                                             id="cmd-1",
                                                         ),
                                                         dbc.Badge(
-                                                            "match --profile  del:1-6",
+                                                            "match --profile del:1-60",
                                                             color="white",
                                                             text_color="primary",
                                                             className="border me-1",
+                                                            id="cmd-3",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --profile ^C162331T",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-4",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --profile OPG188:L246F --profile MPXV-UK_P2-164:L246F ",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-5",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --profile A151461C del:=1-=6",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-8",
                                                         ),
                                                         dbc.Badge(
                                                             "match --LENGTH >197120 <197200",
@@ -155,6 +170,7 @@ custom_cmd_cards = html.Div(
                                                             color="white",
                                                             text_color="primary",
                                                             className="border me-1",
+                                                            id="cmd-9",
                                                         ),
                                                         dbc.Badge(
                                                             "list-prop",
@@ -174,6 +190,30 @@ custom_cmd_cards = html.Div(
                                                         dbc.Tooltip(
                                                             "List all properties",
                                                             target="cmd-7",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Select all samples that have or in range 1-60 deletion mutation (e.g., del:1-60, del:1-6, del:11-20)",
+                                                            target="cmd-3",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Select all samples except samples contain C162331T mutation (^ = exclude)",
+                                                            target="cmd-4",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Combine with 'OR'; for example, get all samples that have mutation at 'OPG188:L246F' OR 'MPXV-UK_P2-164:L246F' (format, GENE/TAG:protien mutation)",
+                                                            target="cmd-5",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Get all samples ",
+                                                            target="cmd-6",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "'AND' operation; for example, get all samples that have mutation at A151461C and exact 1-6 deletion",
+                                                            target="cmd-8",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Get sample by name",
+                                                            target="cmd-9",
                                                         ),
                                                     ],
                                                     title="Example commands...",
@@ -216,6 +256,10 @@ custom_cmd_cards = html.Div(
                                     style_data={
                                         "whiteSpace": "normal",
                                         "height": "auto",
+                                        # all three widths are needed
+                                        "minWidth": "300px",
+                                        "width": "300px",
+                                        "maxWidth": "300px",
                                     },
                                     style_table={"overflowX": "auto"},
                                     export_format="csv",
