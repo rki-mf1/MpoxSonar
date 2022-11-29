@@ -25,6 +25,8 @@ app.layout = html.Div(
                 for page in dash.page_registry.values()
             ]
         ),
+        html.Br(),
+        html.Br(),
         dash.page_container,
         html.Hr(),
         html.Br(),
