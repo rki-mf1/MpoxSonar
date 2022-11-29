@@ -10,9 +10,6 @@ import pandas as pd
 
 dash.register_page(__name__, path="/Tool")
 
-url = "https://raw.githubusercontent.com/hflabs/city/master/city.csv"
-geodata = pd.read_csv(url)
-
 ####example data for example map######
 Sample_data = px.data.carshare()
 
@@ -29,7 +26,8 @@ fig = px.scatter_mapbox(
 #######################################
 
 ####example data for example 2map######
-Sample_data = px.data.carshare()
+url = "https://raw.githubusercontent.com/hflabs/city/master/city.csv"
+geodata = pd.read_csv(url)
 
 fig_ = px.scatter_mapbox(
     geodata,
@@ -42,6 +40,30 @@ fig_ = px.scatter_mapbox(
     mapbox_style="carto-positron"
 )
 #######################################
+
+
+card = dbc.Card(
+    dbc.CardBody(
+        [
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            "direct MPXSonar query: ",
+                            html.Br(),
+                            dcc.Input(
+                                id="my-input", type="text", size="100"
+                            ),
+                        ]
+                    )
+                ]
+            )
+        ]
+    ),
+    style={"width": "18rem"},
+)
+
+
 
 layout = html.Div(
     [
@@ -82,7 +104,7 @@ layout = html.Div(
     ),
 
         html.Div(
-            style={'width':'10%', 'height':'190%','float':'left'},
+            style={'width':'15%', 'height':'190%','float':'left'},
             children=[
                 dcc.Checklist(
                     className ='checkbox_1',
@@ -97,21 +119,24 @@ layout = html.Div(
                 )
             ]
         ),
+        card,
         html.Br(style={'line-height': '10'}),
+        #html.Div(
+        #    [
+        #        html.Div(
+        #            [
+        #                "direct MPXSonar query: ",
+        #                html.Br(),
+        #                dcc.Input(
+        #                    id="my-input", type="text", size="100"
+        #                ),
+        #            ]
+        #        ),
         html.Div(
             [
-                html.Div(
-                    [
-                        "direct MPXSonar query: ",
-                        html.Br(),
-                        dcc.Input(
-                            id="my-input", type="text", size="100"
-                        ),
-                    ]
-                ),
                 html.Br(),
                 html.H1("Here is a map"),
-                dcc.Graph(figure=fig_),
+                dcc.Graph(figure=fig),
                 html.Br(),
                 html.Div(
                     [
