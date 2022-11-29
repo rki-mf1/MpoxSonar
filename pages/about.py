@@ -24,7 +24,7 @@ layout = html.Div(
             html.Img(src=r'https://upload.wikimedia.org/wikipedia/commons/9/99/Sample_User_Icon.png', alt='user', style={'height':'10%', 'width':'10%', 'display':'inline-block', "margin-left": "150px"}),
             html.Div('user1', style={'display':'inline-block'}),
             html.Br(),
-            html.Img(src=r'https://upload.wikimedia.org/wikipedia/commons/9/99/Sample_User_Icon.png', alt='user', style={'height':'10%', 'width':'10%', 'display':'inline-block'}),
+            html.Img(src=r'https://upload.wikimedia.org/wikipedia/commons/9/99/Sample_User_Icon.png', alt='user',   ),
             html.Div('user1', style={'display':'inline-block'}),
             html.Img(src=r'https://upload.wikimedia.org/wikipedia/commons/9/99/Sample_User_Icon.png', alt='user', style={'height':'10%', 'width':'10%', 'display':'inline-block', "margin-left": "150px"}),
             html.Div('user1', style={'display':'inline-block'}),
