@@ -10,6 +10,18 @@ import pandas as pd
 
 dash.register_page(__name__, path="/Tool")
 
+###mutations and countries####
+new_data = pd.read_csv('/home/ivan/MPXRadar-frontend/pages/out.csv')
+
+new_fig = px.scatter_geo(
+    new_data,
+    locations='COUNTRY',
+    locationmode='country names',
+    color='MUTATION',
+    size='OCCURENCES'
+)
+##############################
+
 ####example data for example map######
 Sample_data = px.data.carshare()
 
@@ -54,6 +66,7 @@ card = dbc.Card(
                             dcc.Input(
                                 id="my-input", type="text", size="100"
                             ),
+                            html.Button('Run direct MPXSonar query', id='btn-1', n_clicks=0),
                         ]
                     )
                 ]
@@ -110,33 +123,24 @@ layout = html.Div(
                     className ='checkbox_1',
                     id='vizual-method-list',
                     options=[
-                            {'label': 'visualization-method', 'value': 'I1MT'},
-                            {'label': 'visualization-method', 'value': 'I2MT'},
-                            {'label': 'visualization-method', 'value': 'I3MT'}
+                            {'label': 'Frequencies', 'value': 'freq'},
+                            {'label': 'Increasing Trend', 'value': 'trend-inc'},
+                            {'label': 'Decreasing Trend', 'value': 'trend-dec'},
+                            {'label': 'Constant Trend', 'value': 'trend-const'}
                     ],
                     value=['I1MT'],
                     labelStyle={'display': 'block'}
                 )
             ]
         ),
+        html.Br(style={'line-height': '10'}),
         card,
         html.Br(style={'line-height': '10'}),
-        #html.Div(
-        #    [
-        #        html.Div(
-        #            [
-        #                "direct MPXSonar query: ",
-        #                html.Br(),
-        #                dcc.Input(
-        #                    id="my-input", type="text", size="100"
-        #                ),
-        #            ]
-        #        ),
         html.Div(
             [
                 html.Br(),
                 html.H1("Here is a map"),
-                dcc.Graph(figure=fig),
+                dcc.Graph(figure=new_fig),
                 html.Br(),
                 html.Div(
                     [
