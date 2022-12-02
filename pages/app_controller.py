@@ -36,6 +36,7 @@ class sonarBasicsChild(sonarBasics):
         with sonarDBManager(db, debug=debug) as dbm:
             if format == "vcf" and reference is None:
                 reference = dbm.get_default_reference_accession()
+
             cursor = dbm.match(
                 *profiles,
                 reserved_props=reserved_props_dict,
@@ -45,31 +46,29 @@ class sonarBasicsChild(sonarBasics):
                 output_column=output_column,
                 showNX=showNX,
             )
-            # print(cursor)
             if format == "csv" or format == "tsv":
                 # cursor => list of dict
                 df = pd.DataFrame(cursor)
-                df.drop(["IMPORTED", "MODIFIED"], axis=1, inplace=True)
+                if "IMPORTED" in df.columns and "MODIFIED" in df.columns:
+                    df.drop(["IMPORTED", "MODIFIED"], axis=1, inplace=True)
                 # print(df)
-                output = df
-                tsv = True if format == "tsv" else False
-                sonarBasics.exportCSV(
-                    cursor, outfile=outfile, na="*** no match ***", tsv=tsv
-                )
+                if len(df) == 0:
+                    output = "*** no match ***"
+                else:
+                    output = df
+                # tsv = True if format == "tsv" else False
+                # sonarBasics.exportCSV(
+                #    cursor, outfile=outfile, na="*** no match ***", tsv=tsv
+                # )
             elif format == "count":
                 output = cursor.fetchone()["count"]
-                if outfile:
-                    with open(outfile, "w") as handle:
-                        handle.write(str(output))
-                else:
-                    print(output)
             elif format == "vcf":
+                # TODO: remove this. and change
                 sonarBasics.exportVCF(
                     cursor, reference=reference, outfile=outfile, na="*** no match ***"
                 )
             else:
                 sys.exit("error: '" + format + "' is not a valid output format")
-
         return output
 
     def list_prop(db=None):
@@ -120,15 +119,7 @@ def get_freq_mutation(args):
 def match_controller(args):  # noqa: C901
     props = {}
     reserved_props = {}
-    # for reserved keywords
-    reserved_key = ["sample"]
-    for pname in reserved_key:
-        if hasattr(args, pname):
-            if pname == "sample" and len(getattr(args, pname)) > 0:
-                # reserved_props[pname] = set([x.strip() for x in args.sample])
-                reserved_props = sonarBasics.set_key(
-                    reserved_props, pname, getattr(args, pname)
-                )
+
     with sonarDBManager(args.db, readonly=False, debug=args.debug) as dbm:
         if args.reference:
             if len(dbm.references) != 0 and args.reference not in [
@@ -165,7 +156,7 @@ def match_controller(args):  # noqa: C901
                 )
             # reserved_props[pname] = getattr(args, pname)
     format = "count" if args.count else args.format
-
+    print(props)
     output = sonarBasicsChild.match(
         args.db,
         args.profile,
