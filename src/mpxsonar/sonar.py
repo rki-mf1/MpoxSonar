@@ -696,7 +696,6 @@ def main(args):  # noqa: C901
                             reserved_props, "sample", line.strip()
                         )
         format = "count" if args.count else args.format
-
         sonarBasics.match(
             args.db,
             args.profile,

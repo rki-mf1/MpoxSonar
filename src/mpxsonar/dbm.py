@@ -1721,6 +1721,7 @@ class sonarDBManager:
                 # if 'sample' is presented we just use only samples
                 samples_condition = []
                 for pname, vals in reserved_props.items():
+                    print("sample" + str(vals))
                     if pname == "sample":
                         for x in vals:
                             samples_condition.append('"' + x + '"')
@@ -1741,6 +1742,7 @@ class sonarDBManager:
                         '"' + reference_accession + '"'
                     )
                 else:
+                    # should we use only sample or all alignment
                     sample_selection_sql = "SELECT id FROM sample"
                 if self.debug:
                     logging.info(f"sample_selection_sql: {sample_selection_sql}")
@@ -1838,7 +1840,7 @@ class sonarDBManager:
             _1_rows = self.cursor.fetchall()
 
             _2_final_sql = (
-                " SELECT name AS `sample.name`, nt_profile.reference_accession, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE \
+                " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE \
                     FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
                 + m
                 + "`variant.label`) AS _profile \
@@ -1906,7 +1908,14 @@ class sonarDBManager:
             # _1_rows = list(filter(None, _1_rows))
             # ------ alternative solution convert to df
             df_1 = pd.DataFrame(_1_rows)
+            df_1.sort_values(by=["sample.name"], inplace=True)
+            if self.debug:
+                logging.debug(df_1["sample.name"])
+            # sample.name REFERENCE_ACCESSION NUC_PROFILE AA_PROFILE
             df_2 = pd.DataFrame(_2_rows)
+            df_2.sort_values(by=["sample.name"], inplace=True)
+            if self.debug:
+                logging.debug(df_2["sample.name"])
             """
             merge_df = pd.merge(
                 df_1,
@@ -1917,6 +1926,13 @@ class sonarDBManager:
             )
 
             """
+            # [tmp solution.]- we remove unused column TODO: fix this in the future.
+            df_1.drop(
+                columns=["NUC_PROFILE", "AA_PROFILE", "NUC_N_PROFILE", "AA_X_PROFILE"],
+                inplace=True,
+            )
+            # NOTE: some samples might have only meta info, if we choose inner map
+            # the result will be intersection of two datafram.
             merge_df = pd.merge(
                 df_1,
                 df_2,
@@ -1924,11 +1940,12 @@ class sonarDBManager:
                 left_on=["sample.name"],
                 right_on=["sample.name"],
             )
-            # fix column for ref with noCDS
-            merge_df.loc[
-                merge_df["reference_accession"].isin(all_ref_nocds), "AA_PROFILE_y"
-            ] = "-"
 
+            # fix column for ref with no CDS
+            merge_df.loc[
+                merge_df["REFERENCE_ACCESSION"].isin(all_ref_nocds), "AA_PROFILE"
+            ] = "-"
+            merge_df.fillna("-", inplace=True)
             _1_rows = merge_df.to_dict("records")
             # filter column
             if output_column != "all":
@@ -1942,6 +1959,7 @@ class sonarDBManager:
             return _1_rows  # list(rows.values())
 
         elif format == "count":
+            logging.info("'--count' will return only unique sample.")
             sql = (
                 "SELECT COUNT(DISTINCT s2p.id) AS `count` FROM ("
                 + sample_selection_sql
