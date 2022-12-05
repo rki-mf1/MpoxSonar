@@ -6,6 +6,35 @@ from dash import html
 import dash_bootstrap_components as dbc
 
 app = Dash(__name__, use_pages=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+row1 = html.Tr([
+    html.Td(
+        html.Ul([
+                html.Li(
+                    [html.A("About MPXRadar", href="About", style={'color': 'black'})]),
+                html.Li(
+                    [html.A("Tool", href="Tool", style={'color': 'black'})]),
+                html.Li(
+                    [html.A("Help", href="Help", style={'color': 'black'})]),
+                html.Li(
+                    [html.A("Imprint", href="Home", style={'color': 'black'})]),
+                html.Li(
+                    [html.A("Contact Us", href="Contact", style={'color': 'black'})])
+                ], style={'list-style-type': 'none'}), style={'text-align': 'left'}),
+    html.Td(
+        html.Ul([
+                html.Li([html.Div(children="Supported by:")]),
+                html.Li([html.Img(src=r'assets/Bundesministerium_für_Wirtschaft_und_Energie_Logo.svg.png', alt='Img_RKI',
+                                  style={'height': 'auto', 'width': '50%', 'min-width': '100px'})]),
+                html.Li([html.Div(children="on the basis of a decision")]),
+                html.Li([html.Div(children="by the German Bundestag")]),
+                ], style={'list-style-type': 'none'})),
+    html.Td(html.Img(src=r'assets/denbi_cloud_logo.png', alt='Img_RKI',
+                         style={'float': 'right', 'height': 'auto', 'width': '80%', 'min-width': '100px', 'margin-top': '200px'}),)], style={'border': 'none'})
+table_body = [html.Tbody([row1])]
+
+table = dbc.Table(table_body, bordered=True)
+
 app.layout = html.Div(
     [
         html.H1("MPox Radar", style={'display': 'inline-block'}),
@@ -48,28 +77,7 @@ app.layout = html.Div(
         html.Br(),
         dash.page_container,
         html.Hr(),
-        html.Br(),
-        # style={'height':'99999999px;', 'width':'100%', 'bottom':'0', 'left':'0', 'position':'absolute'}
-        html.Footer([
-            html.A("About MPXRadar", href="About", style={
-                   'color': 'black', 'display': 'inline-block'}),
-            html.Div(children="Supported by:", style={
-                     'float': 'right', "margin-right": "250px"}),
-            html.Br(),
-            html.A("Contact Us", href="Contact", style={'color': 'black'}),
-            html.Br(),
-            html.A("Imprint", href="Home", style={'color': 'black'}),
-            html.Br(),
-            html.A("App:", href="Tool", style={'color': 'black'}),
-
-
-
-            html.Div(children="on the basis of a decision"),
-            html.Div(children="by the German Bundestag"),
-            html.Img(src=r'assets/Bundesministerium_für_Wirtschaft_und_Energie_Logo.svg.png', alt='Img_RKI', style={'float': 'right', 'height': '10%', 'width': '10%'}, className='responsive'),]),
-        html.Br(),
-        html.Img(src=r'assets/denbi_cloud_logo.png', alt='Img_RKI',
-                     style={'float': 'right', 'height': '10%', 'width': '10%'}, className='responsive'),
+        html.Footer([dbc.Table(table)]),
     ]
 )
 

@@ -38,7 +38,7 @@ layout = html.Div(
             """, style={"margin-left": '10px'}
         ),
         html.Img(src="assets/example_ReferenceGenome.png",
-                 style={'float': 'right', 'height': '20%', 'width': '20%'}, className='responsive'),
+                 style={'float': 'right', "width": "100%", "max-width": "200px", "height": "auto"}),
         html.Ul([html.Li([html.Strong("Reference genomes:")],
                 style={"margin-left": '10px'}),
             html.Ul([html.Li([html.Div("""
@@ -61,7 +61,7 @@ layout = html.Div(
                      ]),
 
             html.Img(src="assets/example_MutationsDisplayed.png",
-                         style={'float': 'right', 'height': '15%', 'width': '15%'}, className='responsive'),
+                         style={'float': 'right', "width": "100%", "max-width": "200px", "height": "auto"}),
             html.Li(html.Strong("Mutations:")),
             html.Ul([
                 html.Li(
@@ -100,41 +100,46 @@ layout = html.Div(
                 What is genome?
             """
         ),
-        html.Div(
+        html.Li(
             children="""
-                Answer...
+                A genome is all the genetic information of an organism. It consists of nucleotide sequences of DNA (or RNA in RNA viruses) in an organism. In people, almost every cell in the body contains a complete copy of the genome. The genome contains all of the information needed for a person to develop and grow. 
             """
         ),
+        html.Br(),
         html.Div(
             children="""
                 What is a mutation?
             """
         ),
+        html.Li(
+            children="""
+                A mutation is a change in the genetic code, which is caused by errors in replication. These changes can lead to a change in nucleotides, which in turn can lead to changes in amino acids. Amino acids form proteins and these have a variety of functions in the organism. 
+            """
+        ),
+        html.Br(),
+        html.Div(
+            children="""
+                Why do we have multiple references? What changes when you change the reference?
+            """
+        ),
         html.Div(
             children="""
                 ...
             """
         ),
-        html.Div(
-            children="""
-                Why do we have multiple references? What changes when you chane the reference?
-            """
-        ),
-        html.Div(
-            children="""
-                ...
-            """
-        ),
+        html.Br(),
         html.Div(
             children="""
                 What is the difference between a nucleotide and amino acid?
             """
         ),
-        html.Div(
+        html.Li(
             children="""
-                ...
+                A nucleotide is a unit that makes up a nucleic acid. Nucleotide names are indicated by a four-letter code: Adenine(A), Cytosine(C), Thymine(T), Guanine(G). And the polymer of nucleotides is RNA. When three consecutive nucleotide units come together, it is called a codon, and this codon structure represents the 20 amino acids that make up a protein.
+
             """
         ),
+        html.Br(),
         html.Div(
             children="""
                 How often it gets updated?
@@ -145,6 +150,7 @@ layout = html.Div(
                 ...
             """
         ),
+        html.Br(),
         html.H4(
             children="""
                 Browser compatibility
