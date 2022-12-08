@@ -10,6 +10,31 @@ import pandas as pd
 
 dash.register_page(__name__, path="/Tool")
 
+#####experiment on NOTE data#######
+note_data = pd.read_csv('data/Data.csv')
+coord_data = pd.read_csv('data/location_coordinates.csv')
+
+result = pd.merge(note_data, coord_data, left_on='COUNTRY', right_on='name')
+
+#print(note_data.columns)
+
+result['number'] = [len(x.split(',')) for x in result['NUC_PROFILE']]
+new_res = result.groupby(['COUNTRY', 'lon', 'lat'])['number'].sum().reset_index()
+print(new_res.columns)
+
+fig0 = px.scatter_mapbox(
+    new_res,
+    lat="lat",
+    lon="lon",
+    size="number",
+    #size_max=15,
+    zoom=10,
+    mapbox_style="carto-positron"
+)
+
+print(new_res)
+###########
+
 ###mutations and countries####
 new_data = pd.read_csv('/home/ivan/MPXRadar-frontend/pages/out.csv')
 
@@ -88,10 +113,9 @@ layout = html.Div(
                     className ='checkbox_1',
                     id='references-list',
                     options=[
-                        {'label': 'some-ref-gen', 'value': 'I1ST2'},
-                        {'label': 'some-ref-gen', 'value': 'I2ST2'},
-                        {'label': 'some-ref-gen', 'value': 'I3ST2'},
-                        {'label': 'ssome-ref-gen', 'value': 'I4ST2'},
+                        {'label': 'MT903344.1', 'value': 'MT903344.1'},
+                        {'label': 'NC_063383.1', 'value': 'NC_063383.1'},
+                        {'label': 'ON563414.3', 'value': 'ON563414.3'},
                     ],
                     labelStyle={'display': 'block'}
             )
@@ -140,7 +164,7 @@ layout = html.Div(
             [
                 html.Br(),
                 html.H1("Here is a map"),
-                dcc.Graph(figure=new_fig),
+                dcc.Graph(figure=fig0),
                 html.Br(),
                 html.Div(
                     [
