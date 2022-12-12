@@ -65,20 +65,14 @@ app.layout = html.Div(
                 ),
             ]
         ),
-        # html.Div(
-        #     [
-        #         html.Div(
-        #             dcc.Link(
-        #                 html.A(f"{page['name']}"), href=page["relative_path"], style={'color':'black', 'display':'inline-block'}
-        #             )
-        #                 #f"{page['name']}", href=page["relative_path"]
-        #         )
-        #         for page in dash.page_registry.values()
-        #     ]
-        # ),
         html.Br(),
         html.Br(),
         dash.page_container,
+        html.Br(),
+        html.Br(),
+        html.Br(),
+        html.Br(),
+        html.Div(["Version = v1.3.5"]),
         html.Div([html.Hr(), html.Footer([dbc.Table(table)])], className="app_footer"),
     ]
 )

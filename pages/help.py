@@ -3,59 +3,11 @@ from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
 
+from pages.util_help_tables import table
+from pages.util_help_tables import table_1
+from pages.util_help_tables import table_2
+
 dash.register_page(__name__, path="/Help")
-
-
-table_header = [
-    html.Thead(
-        html.Tr(
-            [
-                html.Th("OS"),
-                html.Th("Version"),
-                html.Th("Chrome"),
-                html.Th("Firefox"),
-                html.Th("Microsoft Edge"),
-                html.Th("Safari"),
-            ]
-        )
-    )
-]
-
-row1 = html.Tr(
-    [
-        html.Td("Linux"),
-        html.Td("CentOS 7"),
-        html.Td("Not tested"),
-        html.Td("61. 0"),
-        html.Td("n/a"),
-        html.Td("n/a"),
-    ]
-)
-row2 = html.Tr(
-    [
-        html.Td("MacOS"),
-        html.Td("HighSierra"),
-        html.Td("Not tested"),
-        html.Td("61. 0"),
-        html.Td("n/a"),
-        html.Td("12.0"),
-    ]
-)
-row3 = html.Tr(
-    [
-        html.Td("10"),
-        html.Td("10"),
-        html.Td("Not tested"),
-        html.Td("61. 0"),
-        html.Td("42.17134.1.0"),
-        html.Td("n/a"),
-    ]
-)
-
-table_body = [html.Tbody([row1, row2, row3])]
-
-table = dbc.Table(table_header + table_body, bordered=True)
-
 
 layout = (
     html.Div(
@@ -109,12 +61,12 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("NC_063383.1"),
-                                            """ This genome is one of the reference genomes pointed out by the National Center for Biotechnology Information
-                     """,
+                                            """ This genome is one of the reference genomes pointed out by the National Center for Biotechnology Information""",
                                             "(",
                                             dcc.Link(
                                                 html.A("NCBI"),
-                                                href="https://www.ncbi.nlm.nih.gov/, target='_blank'",
+                                                href="https://www.ncbi.nlm.nih.gov/",
+                                                target="_blank",
                                             ),
                                             "): ",
                                             dcc.Link(
@@ -127,12 +79,12 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("ON563414.1"),
-                                            """ USA Center for Disease Control sequence (as stated
-                     """,
+                                            """ USA Center for Disease Control sequence (as stated""",
                                             "(",
                                             dcc.Link(
                                                 html.A("here"),
-                                                href="https://labs.epi2me.io/basic-monkeypox-workflow/#workflow-steps, target='_blank'",
+                                                href="https://labs.epi2me.io/basic-monkeypox-workflow/#workflow-steps",
+                                                target="_blank",
                                             ),
                                             "). ",
                                         ]
@@ -140,12 +92,12 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("MT903344.1"),
-                                            """ Monkeypox virus isolate MPXV-UK_P2 (as stated
-                     """,
+                                            """ Monkeypox virus isolate MPXV-UK_P2 (as stated""",
                                             "(",
                                             dcc.Link(
                                                 html.A("here"),
-                                                href="https://labs.epi2me.io/basic-monkeypox-workflow/#workflow-steps, target='_blank'",
+                                                href="https://labs.epi2me.io/basic-monkeypox-workflow/#workflow-steps",
+                                                target="_blank",
                                             ),
                                             "). ",
                                         ]
@@ -253,6 +205,28 @@ layout = (
                     ),
                 ]
             ),
+            html.H4(
+                children="""
+                MPoxSonar commnand - user manual
+            """
+            ),
+            html.P(
+                "MPoxRadar provides an interactive map and informative data to explore and understand current Monkeypox data. It builds on top of MPoxSonar (GITHUB) and integrates closely with many reliable python libraries and data structures. MPoxSonar is an extension of Covsonar (the database-driven system for handling genomic sequences of SARS-CoV-2 and screening genomic profiles, developed at the RKI (https://github.com/rki-mf1/covsonar)) that adds support for multiple genome references and quick processing with MariaDB.  Hence, with MPoxSonar as the backend, we can quickly collect mutation profiles from sequence data. Currently, the MPoxRadar provides the feature to interact with MPoxSonar for a specific type of query."
+            ),
+            html.P(
+                "Due to security reason, we limit some MPoxSonar commands to be accessible. The following commands are currently available in MPoxRadar website;"
+            ),
+            table_2,
+            html.Li(
+                [
+                    html.Strong("Reminder"),
+                    ": Currently, we provide three reference genomes; including, NC_063383.1, ON563414.3 and MT903344.1. However, they annotate gene and protein names differently. For example, NC_063383 uses the “OPGXXX” tag (e.g., OPG003, OPG019), while ON563414.3 uses the “MPXV-USA” tag. This can affect a protein search and result in querying the same mutation profile. ( ",
+                    html.Strong("MPXV-USA_2022_MA001-164:L246F"),
+                    " vs. ",
+                    html.Strong("OPG188:L246F"),
+                    " ).",
+                ]
+            ),
             html.H3(
                 children="""
                 FAQ:
@@ -285,12 +259,47 @@ layout = (
                 Why do we have multiple references? What changes when you change the reference?
             """
             ),
-            html.Div(
-                children="""
-                ...
-            """
+            html.Li(
+                [
+                    "To support mutation analysis in different locations and times. A reference genome is an idealized representative or template of the collection of genes in one species at a certain time. With advancements in technology, the reference genome is continually refined and filled the gap of inaccuracies represented in the reference genome. This is imperative because selecting a genome reference may affect subsequent analysis, such as detecting single nucleotide polymorphisms (SNPs), phylogenetic inference, functional prediction or defining the source of errors.",
+                    html.Br(),
+                    "Moreover, genes are more divergent, and they are often affected by interactions with the environment, for example, temperature, pollutants or exposure to some interference that alters a transcription or replication process. So, permanent changes can be made to the genetic code of a gene as a result of these effects. When we perform DNA sequencing for the reference genome, a new DNA change might exist in the reference genome throughout time.",
+                    html.Br(),
+                    "Therefore, technological improvements have led to the release of reference genomes over time and annotations with better well-studied approaches, and the choice of a reference genome can improve the quality and accuracy of the downstream analysis.",
+                ]
             ),
             html.Br(),
+            html.Div(
+                children="""
+                What changes when you change the reference?
+            """
+            ),
+            html.Li(
+                [
+                    "Even though the new releases of genome assembly shares significant amounts of synteny with the previous version, the annotated structure of genes or individual bases in the same regions can differ.  ",
+                    html.Br(),
+                    "This change might affect",
+                    html.Ol(
+                        [
+                            html.Li("variant identification"),
+                            html.Li("new or re-annotated coding sequences (CDS)"),
+                            html.Li("identifier of gene and protein"),
+                            html.Li(
+                                [
+                                    "variant identification",
+                                    "(for more details, ",
+                                    dcc.Link(
+                                        href="https://www.ncbi.nlm.nih.gov/genomes/locustag/Proposal.pdf",
+                                        target="_blank",
+                                    ),
+                                    " )",
+                                ],
+                                style={"list-style-type": "none"},
+                            ),
+                        ]
+                    ),
+                ]
+            ),
             html.Div(
                 children="""
                 What is the difference between a nucleotide and amino acid?
@@ -305,14 +314,10 @@ layout = (
             html.Br(),
             html.Div(
                 children="""
-                How often it gets updated?
+                How often the application gets updated?
             """
             ),
-            html.Div(
-                children="""
-                ...
-            """
-            ),
+            table_1,
             html.Br(),
             html.H4(
                 children="""

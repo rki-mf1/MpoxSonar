@@ -7,11 +7,11 @@ import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 
-from pages.util_tool_checklists import card
 from pages.util_tool_checklists import checklist_1
 from pages.util_tool_checklists import checklist_2
 from pages.util_tool_checklists import checklist_3
 from pages.util_tool_checklists import checklist_4
+from pages.util_tool_checklists import query_card
 
 
 dash.register_page(__name__, path="/Tool")
@@ -60,29 +60,6 @@ inputs = html.Div(
     ]
 )
 
-
-@app.callback(
-    Output("checklist-output", "children"),
-    [
-        Input("checklist-input", "value"),
-    ],
-)
-def on_form_change(radio_items_value, checklist_value, switches_value):
-    template = "checklist item{} selected."
-
-    n_checkboxes = len(checklist_value)
-    n_switches = len(switches_value)
-
-    output_string = template.format(
-        radio_items_value,
-        n_checkboxes,
-        "s" if n_checkboxes != 1 else "",
-        n_switches,
-        "es" if n_switches != 1 else "",
-    )
-    return output_string
-
-
 layout = html.Div(
     [
         html.Div(
@@ -122,69 +99,8 @@ layout = html.Div(
             ]
         ),
         html.P(id="radioitems-checklist-output"),
-        # # check box with references
-        # html.Div(
-        #     style={'width': '10%', 'height': '100%', 'float': 'left'},
-        #     children=[
-        #         dcc.Checklist(
-        #             className='checkbox_1',
-        #             id='references-list',
-        #             options=[
-        #                 {'label': 'some-ref-gen', 'value': 'I1ST2'},
-        #                 {'label': 'some-ref-gen', 'value': 'I2ST2'},
-        #                 {'label': 'some-ref-gen', 'value': 'I3ST2'},
-        #                 {'label': 'ssome-ref-gen', 'value': 'I4ST2'},
-        #             ],
-        #             labelStyle={'display': 'block'}
-        #         )
-        #     ]
-        # ),
-        # # checkbox with mutations
-        # html.Div(
-        #     style={'width': '10%', 'height': '100%', 'float': 'left'},
-        #     children=[
-        #         dcc.Checklist(
-        #             className='checkbox_1',
-        #             id='mutation-list',
-        #             options=[
-        #                 {'label': 'some mutation', 'value': 'I1ST2'},
-        #                 {'label': 'some mutation', 'value': 'I2ST2'},
-        #                 {'label': 'some mutation', 'value': 'I3ST2'},
-        #                 {'label': 'some mutation', 'value': 'I4ST2'},
-        #             ],
-        #             labelStyle={'display': 'block'}
-        #         )
-        #     ]
-        # ),
-        # html.Div(
-        #     style={'width': '15%', 'height': '190%', 'float': 'left'},
-        #     children=[
-        #         dcc.Checklist(
-        #             className='checkbox_1',
-        #             id='vizual-method-list',
-        #             options=[
-        #                 {'label': 'visualization-method', 'value': 'I1MT'},
-        #                 {'label': 'visualization-method', 'value': 'I2MT'},
-        #                 {'label': 'visualization-method', 'value': 'I3MT'}
-        #             ],
-        #             value=['I1MT'],
-        #             labelStyle={'display': 'block'}
-        #         )
-        #     ]
-        # ),
-        card,
+        query_card,
         html.Br(style={"line-height": "10"}),
-        # html.Div(
-        #    [
-        #        html.Div(
-        #            [
-        #                "direct MPXSonar query: ",
-        #                html.Br(),
-        #                dcc.Input(
-        #                    id="my-input", type="text", size="100"
-        #                ),
-        #            ]
-        #        ),
         html.Div(
             [
                 html.Br(),
@@ -201,3 +117,23 @@ layout = html.Div(
         ),
     ]
 )
+
+
+@app.callback(
+    Output("checklist-output", "children"),
+    [
+        Input("1_checklist_input", "value"),
+        Input("2_checklist_input", "value"),
+        Input("3_checklist_input", "value"),
+        Input("4_checklist_input", "value"),
+    ],
+)
+def select_all_none(all_selected, options):
+    all_or_none = []
+    all_or_none = [option["value"] for option in options if all_selected]
+    return all_or_none
+
+
+@app.callback(Output("query_output", "children"), [Input("query_input", "value")])
+def output_text(value):
+    return value

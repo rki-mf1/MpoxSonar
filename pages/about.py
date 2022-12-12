@@ -16,6 +16,7 @@ layout = html.Div(
                         Therefore, the Robert Koch Institute (RKI) together with the Hasso Platter Institute (HPI) joined forces to and adapted the tool covSonar - a database framework developed at the RKI for SARS-CoV-2 - to Monkeypox.
                     """
         ),
+        html.Br(),
         html.H1(children="Who are we?"),
         html.Div(
             [
@@ -238,16 +239,27 @@ layout = html.Div(
         ),
         html.H1(children="Data sources:"),
         html.Div(
-            children="""
-                        ...
-                    """
+            [
+                """
+                MPoxRadar provides an interactive map and informative data to explore and understand current Monkeypox data. It builds on top of MPoxSonar (""",
+                html.Strong("GITHUB"),
+                """) and integrates closely with many reliable python libraries and data structures. MPoxSonar is an extension of Covsonar (the database-driven system for handling genomic sequences of SARS-CoV-2 and screening genomic profiles, developed at the RKI (""",
+                dcc.Link(
+                    html.A("Link"),
+                    href="https://github.com/rki-mf1/covsonar",
+                    target="_blank",
+                ),
+                """)) that adds support for multiple genome references and quick processing with MariaDB. """,
+            ]
         ),
+        html.Br(),
         html.H1(children="Link to code:"),
         dcc.Link(
             html.A("Link to Github"),
             href=("https://github.com/ferbsx/MPXRadar-frontend"),
             target="_blank",
         ),
+        html.Br(),
         html.H1(children="Acknowledgements:"),
         html.Div(
             children="""

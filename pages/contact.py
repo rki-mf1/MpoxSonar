@@ -1,4 +1,5 @@
 import dash
+from dash import dcc
 from dash import html
 
 dash.register_page(__name__, path="/Contact")
@@ -14,9 +15,14 @@ layout = (
             ),
             html.Br(),
             html.Div(
-                children="""
-                GitHub repository link: [github-repo-link]
-            """
+                [
+                    "GitHub repository link: ",
+                    dcc.Link(
+                        html.A("Link to Github"),
+                        href=("https://github.com/ferbsx/MPXRadar-frontend"),
+                        target="_blank",
+                    ),
+                ]
             ),
             html.Br(),
             html.Div(

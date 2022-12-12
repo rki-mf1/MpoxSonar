@@ -18,7 +18,6 @@ layout = (
             html.Div("13353 Berlin"),
             html.Br(),
             html.H4("Contact: "),
-            html.Div("Stephan Fuchs", style={"margin-bottom": "10px"}),
             dcc.Link(
                 html.A("fuchss@rki.de"), href="mailto:fuchss@rki.de", target="_blank"
             ),

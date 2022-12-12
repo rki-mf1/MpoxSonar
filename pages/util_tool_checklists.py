@@ -13,7 +13,7 @@ checklist_1 = dbc.Card(
                     {"label": "MPXV-xxx", "value": 3},
                     {"label": "...", "value": 4},
                 ],
-                value=[1],
+                value=[],
                 id="1_checklist_input",
             ),
         ]
@@ -31,7 +31,7 @@ checklist_2 = dbc.Card(
                     {"label": "Mutation 2", "value": 3},
                     {"label": "...", "value": 4},
                 ],
-                value=[1],
+                value=[],
                 id="2_checklist_input",
             ),
         ],
@@ -49,8 +49,8 @@ checklist_3 = dbc.Card(
                     {"label": "Decreasing Trend", "value": 3},
                     {"label": "Constant Trend", "value": 4},
                 ],
-                value=[1],
-                id="2_checklist_input",
+                value=[],
+                id="3_checklist_input",
             ),
         ],
     )
@@ -67,15 +67,15 @@ checklist_4 = dbc.Card(
                     {"label": "Nanopore", "value": 3},
                     {"label": "...", "value": 4},
                 ],
-                value=[1],
-                id="2_checklist_input",
+                value=[],
+                id="4_checklist_input",
             ),
         ],
     )
 )
 
 
-card = dbc.Card(
+query_card = dbc.Card(
     dbc.CardBody(
         [
             html.Div(
@@ -91,11 +91,11 @@ card = dbc.Card(
             html.Div(
                 [
                     dbc.Input(
-                        id="my-input",
+                        id="query_input",
                         placeholder="Type here MPXSonar query...",
                         type="text",
                         size="100%",
-                    )
+                    ),
                 ]
             ),
         ]
