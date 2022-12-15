@@ -230,7 +230,8 @@ layout = (
             html.H3(
                 children="""
                 FAQ:
-            """
+            """,
+                style={"margin-top": "25px", "text-align": "center"},
             ),
             html.Div(
                 children="""
