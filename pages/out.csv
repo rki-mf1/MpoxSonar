@@ -1,0 +1,10 @@
+COUNTRY,MUTATION,OCCURENCES
+Austria,I64K,352
+Egypt,I64K,8
+Germany,I64K,13190
+Israel,I64K,32
+Portugal,I64K,704
+Slovakia,I64K,352
+Switzerland,I64K,32
+United Kingdom,I64K,5816
+USA,I64K,6663
