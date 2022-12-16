@@ -10,8 +10,11 @@ from dash import Output
 from dash import State
 import dash_bootstrap_components as dbc
 from dotenv import load_dotenv
+import pandas as pd
 
+from pages.app_controller import get_all_references
 from pages.app_controller import get_freq_mutation
+from pages.app_controller import get_value_by_reference
 from pages.app_controller import match_controller
 from pages.app_controller import sonarBasicsChild
 from pages.libs.mpxsonar.src.mpxsonar.sonar import parse_args
@@ -20,6 +23,53 @@ load_dotenv()
 # stylesheet with the .dbc class
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc_css])
+df = pd.DataFrame(
+    {
+        "First Name": ["Arthur", "Ford", "Zaphod", "Trillian"],
+        "Last Name": ["Dent", "Prefect", "Beeblebrox", "Astra"],
+    }
+)
+# preload
+dat_checkbox_list_of_dict = get_all_references()
+
+
+tool_checkbox_cards = html.Div(
+    [
+        dbc.Card(
+            [
+                dbc.CardBody(
+                    [
+                        dbc.CardHeader("FILTER"),
+                        dbc.Row(
+                            [
+                                html.H3("Reference", className="card-title"),
+                                dbc.Col(
+                                    [
+                                        dcc.Checklist(
+                                            id="reference-selection",
+                                            options=dat_checkbox_list_of_dict,
+                                            labelStyle={"display": "block"},
+                                            style={
+                                                "height": 100,
+                                                "width": 200,
+                                                "overflow": "auto",
+                                            },
+                                        )
+                                    ]
+                                ),
+                                dbc.Spinner(html.Div(id="loading-output")),
+                                html.Div(id="display-selected-values"),
+                                html.Hr(),
+                                html.Div(id="table1-results"),
+                            ]
+                        ),
+                    ]
+                ),
+            ]
+        ),
+    ]
+)
+
 custom_cmd_cards = html.Div(
     [
         dbc.Card(
@@ -113,7 +163,7 @@ custom_cmd_cards = html.Div(
                                                             "1.The output will be showed in the below section."
                                                         ),
                                                         html.Ul(
-                                                            "2. Available reference: NC_063383.1, NC_003310.1, ON563414.3, MN648051.1, MT903344.1, ON585033.1, and ON568298.1 "
+                                                            "2. Available reference: NC_063383.1, ON563414.3 and MT903344.1"
                                                         ),
                                                     ],
                                                     title="Note>",
@@ -131,10 +181,32 @@ custom_cmd_cards = html.Div(
                                                             id="cmd-1",
                                                         ),
                                                         dbc.Badge(
-                                                            "match --profile  del:1-6",
+                                                            "match --profile del:1-60",
                                                             color="white",
                                                             text_color="primary",
                                                             className="border me-1",
+                                                            id="cmd-3",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --profile ^C162331T",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-4",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --profile OPG188:L246F --profile MPXV-UK_P2-164:L246F ",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-5",
+                                                        ),
+                                                        dbc.Badge(
+                                                            "match --profile A151461C del:=1-=6",
+                                                            color="white",
+                                                            text_color="primary",
+                                                            className="border me-1",
+                                                            id="cmd-8",
                                                         ),
                                                         dbc.Badge(
                                                             "match --LENGTH >197120 <197200",
@@ -148,6 +220,7 @@ custom_cmd_cards = html.Div(
                                                             color="white",
                                                             text_color="primary",
                                                             className="border me-1",
+                                                            id="cmd-9",
                                                         ),
                                                         dbc.Badge(
                                                             "list-prop",
@@ -167,6 +240,30 @@ custom_cmd_cards = html.Div(
                                                         dbc.Tooltip(
                                                             "List all properties",
                                                             target="cmd-7",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Select all samples that have or in range 1-60 deletion mutation (e.g., del:1-60, del:1-6, del:11-20)",
+                                                            target="cmd-3",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Select all samples except samples contain C162331T mutation (^ = exclude)",
+                                                            target="cmd-4",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Combine with 'OR'; for example, get all samples that have mutation at 'OPG188:L246F' OR 'MPXV-UK_P2-164:L246F' (format, GENE/TAG:protien mutation)",
+                                                            target="cmd-5",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Get all samples ",
+                                                            target="cmd-6",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "'AND' operation; for example, get all samples that have mutation at A151461C and exact 1-6 deletion",
+                                                            target="cmd-8",
+                                                        ),
+                                                        dbc.Tooltip(
+                                                            "Get sample by name",
+                                                            target="cmd-9",
                                                         ),
                                                     ],
                                                     title="Example commands...",
@@ -209,6 +306,10 @@ custom_cmd_cards = html.Div(
                                     style_data={
                                         "whiteSpace": "normal",
                                         "height": "auto",
+                                        # all three widths are needed
+                                        "minWidth": "300px",
+                                        "width": "300px",
+                                        "maxWidth": "300px",
                                     },
                                     style_table={"overflowX": "auto"},
                                     export_format="csv",
@@ -227,7 +328,7 @@ custom_cmd_cards = html.Div(
 
 app.layout = dbc.Container(
     [
-        dbc.Row([]),
+        dbc.Row([tool_checkbox_cards]),
         html.Hr(),
         dbc.Row(
             [
@@ -237,6 +338,29 @@ app.layout = dbc.Container(
         ),
     ]
 )
+
+
+@app.callback(
+    Output("loading-output", "children"),
+    Output("display-selected-values", "children"),
+    Output("table1-results", "children"),
+    Input(component_id="reference-selection", component_property="value"),
+)
+def checkbox(checked_value):
+    output_df = ""
+    print(checked_value)
+    if len(checked_value) == 0:
+        return "", "", output_df
+    else:
+        output_df = get_value_by_reference(checked_value)
+    print(len(output_df))
+    return (
+        "",
+        "{}".format(checked_value),
+        dbc.Table.from_dataframe(
+            output_df[0:5], striped=True, bordered=True, hover=True
+        ),
+    )
 
 
 @app.callback(
