@@ -19,36 +19,29 @@ dash.register_page(__name__, path="/Tool")
 app = dash.Dash(__name__)
 
 # example data for example map
-Sample_data = px.data.carshare()
+note_data = pd.read_csv('data/Data.csv')
+coord_data = pd.read_csv('data/location_coordinates.csv')
+
+result = pd.merge(note_data, coord_data, left_on='COUNTRY', right_on='name')
+
+#print(note_data.columns)
+
+result['number'] = [len(x.split(',')) for x in result['NUC_PROFILE']]
+new_res = result.groupby(['COUNTRY', 'lon', 'lat', 'RELEASE_DATE'])['number'].sum().reset_index()
+print(new_res.columns)
 
 fig = px.scatter_mapbox(
-    Sample_data,
-    lat="centroid_lat",
-    lon="centroid_lon",
-    color="peak_hour",
-    size="car_hours",
-    color_continuous_scale=px.colors.cyclical.IceFire,
-    size_max=15,
-    zoom=10,
-    mapbox_style="carto-positron",
+    new_res,
+    lat="lat",
+    lon="lon",
+    size="number",
+    animation_frame='RELEASE_DATE',
+    #size_max=15,
+    zoom=0.75,
+    mapbox_style="carto-positron"
 )
 
-# example data for example 2map
-url = "https://raw.githubusercontent.com/hflabs/city/master/city.csv"
-geodata = pd.read_csv(url)
-
-fig_ = px.scatter_mapbox(
-    geodata,
-    lat="geo_lat",
-    lon="geo_lon",
-    size="population",
-    color_continuous_scale=px.colors.cyclical.IceFire,
-    size_max=15,
-    zoom=10,
-    mapbox_style="carto-positron",
-)
-#######################################
-
+print(new_res)
 
 inputs = html.Div(
     [
