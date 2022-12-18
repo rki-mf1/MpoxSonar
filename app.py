@@ -38,7 +38,7 @@ app.layout = html.Div(
             style={"float": "right", "height": "10%", "width": "10%"},
             className="responsive",
         ),
-        html.Div("A genomic surveiillance dashboard for MonkeyPox."),
+        html.Div("An interactive dashboard for genomic surveillance of the Monkey Pox Virus."),
         html.Br(),
         html.Div(
             [
@@ -82,6 +82,8 @@ app.layout = html.Div(
         html.Div([html.Hr(), html.Footer([dbc.Table(table)])], className="app_footer"),
     ]
 )
+
+app.title = 'MPox Report'
 
 if __name__ == "__main__":
     app.run_server(debug=True, host="0.0.0.0")
