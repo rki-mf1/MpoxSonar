@@ -23,7 +23,13 @@ app.layout = html.Div(
         html.Img(
             src=r"assets/rki_logo.png",
             alt="Img_RKI",
-            style={"float": "right", "height": "10%", "width": "10%"},
+            style={
+                "float": "right",
+                "height": "10%",
+                "width": "10%",
+                "margin-top": "50px",
+                "margin-right": "20px",
+            },
             className="responsive",
         ),
         html.Img(
