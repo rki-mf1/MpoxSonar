@@ -1,3 +1,5 @@
+import os
+
 import dash
 from dash import dash_table
 from dash import dcc
@@ -17,8 +19,8 @@ dash.register_page(__name__, path="/Tool")
 
 
 # TEST DATA EXPERIMENT
-note_data = pd.read_csv("data/Data.csv")
-coord_data = pd.read_csv("data/location_coordinates.csv")
+note_data = pd.read_csv(os.getcwd()+"/"+"data/Data.csv")
+coord_data = pd.read_csv(os.getcwd()+"/"+"data/location_coordinates.csv")
 
 result = pd.merge(note_data, coord_data, left_on="COUNTRY", right_on="name")
 
