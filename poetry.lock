@@ -170,6 +170,14 @@ optional = false
 python-versions = "*"
 
 [[package]]
+name = "dash-mantine-components"
+version = "0.11.0"
+description = "Plotly Dash Components based on Mantine"
+category = "main"
+optional = false
+python-versions = "*"
+
+[[package]]
 name = "dash-table"
 version = "5.0.0"
 description = "Dash table"
@@ -909,7 +917,7 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "f5b88addad0743063171f5883597048e9123414dcc18c42e954394d5eed7268f"
+content-hash = "d04fa4e192d4fce7305a33d902518ad1544c585e93efd507c928f4208be23fe0"
 
 [metadata.files]
 attrs = [
@@ -1063,6 +1071,9 @@ dash-core-components = [
 dash-html-components = [
     {file = "dash_html_components-2.0.0-py3-none-any.whl", hash = "sha256:b42cc903713c9706af03b3f2548bda4be7307a7cf89b7d6eae3da872717d1b63"},
     {file = "dash_html_components-2.0.0.tar.gz", hash = "sha256:8703a601080f02619a6390998e0b3da4a5daabe97a1fd7a9cebc09d015f26e50"},
+]
+dash-mantine-components = [
+    {file = "dash_mantine_components-0.11.0-py3-none-any.whl", hash = "sha256:e2fa1a089926e7f7c9bc29a02ee06f8ce6cfb4d867b3e9bcd55d8a74cd27664c"},
 ]
 dash-table = [
     {file = "dash_table-5.0.0-py3-none-any.whl", hash = "sha256:19036fa352bb1c11baf38068ec62d172f0515f73ca3276c79dee49b95ddc16c9"},
