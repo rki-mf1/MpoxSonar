@@ -46,6 +46,74 @@ fig0 = px.scatter_mapbox(
 #
 
 
+
+######### added by Jorge ##########
+## inspired by covradar/server.py ##
+#
+from data import load_all_sql_files, get_database_connection
+#
+# possible ToDo's:
+#
+#    pickle files
+#    register_callbacks_report_latest 
+#    register_dashapp (see covradar/frontend/app/__init__.py)
+#
+if 'MYSQL_DB' in os.environ:
+    db_name = os.environ.get('MYSQL_DB')
+    db_connection = get_database_connection(db_name)
+    df_dict_mpox = load_all_sql_files(db_name)
+else:
+    df_dict_mpox = pd.read_csv("df_mpox['propertyView'].csv")
+#
+#### shaping the data for the map:
+#### and experimentation !
+## db = mpox_testdata@asusdebian ##
+import numpy as np
+mpox_testdata = df_dict_mpox['propertyView']
+alpha = mpox_CONTRY_absolute_counts = mpox_testdata[mpox_testdata['property.name'] == 'COUNTRY']['value_text'].value_counts()
+betha = pd.DataFrame(data=np.array([alpha.index, alpha.values]), index = ['COUNTRY', 'OCCURRENCES']).T
+betha['OCCURRENCES'] = betha['OCCURRENCES'].astype(str).astype(int)
+#
+mpox_fig = px.scatter_geo(
+    betha,
+    locations='COUNTRY',
+    locationmode='country names',
+    #color='MUTATION',
+    size='OCCURRENCES'#,
+#    title="first sample on"+QUERY+"last sample on"+QUERY
+)
+mpox_fig_2 = px.choropleth(
+    data_frame=betha,
+    locations='COUNTRY',
+    locationmode='country names',
+    color='OCCURRENCES',
+    color_continuous_scale='sunsetdark', # brwnyl burg burgyl darkmint jet oranges reds sunsetdark turbo ylorbr matter balance
+    center=None#,
+#    center=dict(lat=51.5, lon=10.5), 
+#    hover_name=None, hover_data=None, custom_data=None,
+#    animation_frame=None, animation_group=None,
+#    category_orders=None, labels=None, color_discrete_sequence=None, color_discrete_map=None,
+#    range_color=None, color_continuous_midpoint=None,projection=None, scope=None, 
+#    fitbounds=None, basemap_visible=None, title=None, template=None, width=None, height=None
+)
+import plotly.graph_objects as go
+mpox_fig_3 = go.Figure(
+    data = go.Choropleth(
+        locations = betha['COUNTRY'],
+        z = betha['OCCURRENCES'],
+        locationmode = 'country names',
+        colorscale = 'Reds',
+        colorbar_title = 'OCCURRENCES'
+))
+mpox_fig_2.update_layout(
+    geo=dict(scope='world'),
+#    autosize=False,
+    margin=dict(l=30,r=0,b=0,t=30)#,
+)
+##################################
+
+
+
 layout = html.Div(
     [
         # check box with references
