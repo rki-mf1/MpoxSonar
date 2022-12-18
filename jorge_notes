@@ -13,6 +13,12 @@ installed pyarrow per conda install and I don't know how to atomatize the enviro
 redis-server is running but I am not sure it is needed
 
 
+-----
+
+general command:
+	$ MYSQL_HOST=127.0.0.1 MYSQL_USER=jorge MYSQL_PW= MYSQL_DB=mpox_testdata python app.py
+
+
 -----  dev branch with jorge/dev-code or files
 
 conda install pyarrow
