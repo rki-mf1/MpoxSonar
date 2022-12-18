@@ -40,7 +40,7 @@ fig0 = px.scatter_mapbox(
     size="number",
     # size_max=15,
     animation_frame="RELEASE_DATE",
-    zoom=10,
+    zoom=0.5,
     mapbox_style="carto-positron",
 )
 #
