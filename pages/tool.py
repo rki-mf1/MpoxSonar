@@ -191,6 +191,7 @@ layout = html.Div(
                 html.Br(),
                 html.H1("Here is a map"),
                 dcc.Graph(figure=fig0),
+                #dcc.Graph(figure=mpox_fig), # another map
                 html.Br(),
                 html.Div(
                     [
