@@ -11,3 +11,12 @@ $ sudo mysql -u root -p -e "GRANT ALL PRIVILEGES ON *.* TO jorge@localhost ident
 installed pyarrow per conda install and I don't know how to atomatize the environment creation for git clone
 
 redis-server is running but I am not sure it is needed
+
+
+-----  dev branch with jorge/dev-code or files
+
+conda install pyarrow
+conda install dash-mantine-components
+conda install sqlalchemy
+conda install pymysql
+  
