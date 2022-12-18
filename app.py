@@ -6,7 +6,7 @@ from dash import html
 app = Dash(__name__, use_pages=True)
 app.layout = html.Div(
     [
-        html.H1("MonkeyPox Radar", style={"display": "inline-block"}),
+        html.H1("MPox Radar", style={"display": "inline-block"}),
         html.Img(
             src=r"assets/hpi_logo.png",
             alt="Img_HPI",
@@ -22,7 +22,7 @@ app.layout = html.Div(
             alt="Img_DAKI-FWS",
             style={"float": "right", "height": "15%", "width": "15%"},
         ),
-        html.Div("A genomic surveiillance dashboard for MonkeyPox."),
+        html.Div("An interactive dashboard for genomic surveiillance of the Monkey Pox Virus."),
         html.Br(),
         html.Div(
             [
@@ -46,7 +46,7 @@ app.layout = html.Div(
         html.Footer(
             [
                 html.A(
-                    "About MPXRadar",
+                    "About MPoxRadar",
                     href="About",
                     style={"color": "black", "display": "inline-block"},
                 ),
@@ -76,6 +76,8 @@ app.layout = html.Div(
         ),
     ]
 )
+
+app.title = 'MPox Report'
 
 if __name__ == "__main__":
     app.run_server(debug=True, host="0.0.0.0")
