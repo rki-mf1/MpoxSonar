@@ -166,7 +166,7 @@ layout = html.Div([
             dbc.Card(
                 [
                     dbc.CardImg(
-                        src="assets/Jorge Sanchez-Cortes.png",
+                        src="assets/Jorge Sánchez Cortés.png",
                         top=True,
                         style={"width": "238px", "height": "auto"},
                         className="align-self-center",
