@@ -257,22 +257,21 @@ layout = (
                 What is genome?
             """
             ),
-            html.Li(
-                children="""
-                A genome is all the genetic information of an organism. It consists of nucleotide sequences of DNA (or RNA in RNA viruses) in an organism. In people, almost every cell in the body contains a complete copy of the genome. The genome contains all of the information needed for a person to develop and grow.
-            """
-            ),
+            html.Li(["""
+                A genome is all the genetic information of an organism, which contains blueprints for proteins. It consists of nucleotide sequences of DNA (or RNA in RNA viruses) in an organism.""", html.Br(),
+                     """A nucleotide is a unit that makes up a nucleic acid. Nucleotide names are indicated by a four-letter code: Adenine(A), Cytosine(C), Thymine(T), Guanine(G). And the polymer of nucleotides is RNA. When three consecutive nucleotide units come together, it is called a codon, and this codon structure represents the 20 amino acids that make up a protein."""
+                     ]),
             html.Br(),
             html.Div(
                 children="""
                 What is a mutation?
             """
             ),
-            html.Li(
-                children="""
-                A mutation is a change in the genetic code, which is caused by errors in replication. These changes can lead to a change in nucleotides, which in turn can lead to changes in amino acids. Amino acids form proteins and these have a variety of functions in the organism.
-            """
-            ),
+            html.Li(["""
+                A mutation is a change in the sequence of genetic information, which is caused by errors in replication. These changes can lead to a change in nucleotides, which in turn can lead to changes in amino acids. Amino acids form proteins and these have a variety of functions in the organism. Principally, there are two types of genetic variation: The one is SNP(Single Nucleotide Polymorphism), and the other is INDEL(Insertion & Deletion). SNP is a mutation in which a single nucleotide is changed. INDEL is a mutation, when plural nucleotides are inserted or deleted in comparison with a reference sequence.""", html.Br(),
+                     """For instance, C162331T appears as a lineage change of aminoacid from C to T in position 162331.""", html.Br(),
+                     """A mutation is usually deleterious to the virus, causing that mutation to die out, but sometimes it can lead to benefits (such as increased infectivity, vaccine escape, antibody escape, etc.), which is deleterious for the host. That's why genomic surveillance is so important."""
+                     ]),
             html.Br(),
             html.Div(
                 children="""
@@ -319,17 +318,6 @@ layout = (
                         ]
                     ),
                 ]
-            ),
-            html.Div(
-                children="""
-                What is the difference between a nucleotide and amino acid?
-            """
-            ),
-            html.Li(
-                children="""
-                A nucleotide is a unit that makes up a nucleic acid. Nucleotide names are indicated by a four-letter code: Adenine(A), Cytosine(C), Thymine(T), Guanine(G). And the polymer of nucleotides is RNA. When three consecutive nucleotide units come together, it is called a codon, and this codon structure represents the 20 amino acids that make up a protein.
-
-            """
             ),
             html.Br(),
             html.Div(
