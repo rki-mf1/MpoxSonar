@@ -6,6 +6,7 @@
 # DEPENDENCIES
 import collections
 import csv
+from datetime import datetime
 import os
 import sys
 
@@ -477,10 +478,11 @@ class sonarBasics(object):
                 ):
                     pbar.update(1)
             # insert into DB
-            cache.import_cached_samples()
+            cache.import_cached_samples(threads)
 
         # importing properties
         if tsv:
+            logging.info("Import meta data.")
             with sonarDBManager(db, readonly=False, debug=debug) as dbm:
                 for sample_name in tqdm(
                     properties,
@@ -495,6 +497,8 @@ class sonarBasics(object):
                         continue
                     for property_name, value in properties[sample_name].items():
                         dbm.insert_property(sample_id, property_name, value)
+
+        cache.log(f"//Done:--{datetime.now().strftime('%m/%d/%Y, %H:%M:%S')}--")
 
     # matching
     @staticmethod
