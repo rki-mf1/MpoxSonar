@@ -241,15 +241,13 @@ layout = html.Div(
         html.Div(
             [
                 """
-                MPoxRadar provides an interactive map and informative data to explore and understand current Monkeypox data. It builds on top of MPoxSonar (""",
-                html.Strong("GITHUB"),
-                """) and integrates closely with many reliable python libraries and data structures. MPoxSonar is an extension of Covsonar (the database-driven system for handling genomic sequences of SARS-CoV-2 and screening genomic profiles, developed at the RKI (""",
+                The Datasource of MPOX Radar is NCBI virus (""",
                 dcc.Link(
                     html.A("Link"),
-                    href="https://github.com/rki-mf1/covsonar",
+                    href="https://www.ncbi.nlm.nih.gov/labs/virus/vssi/#/",
                     target="_blank",
                 ),
-                """)) that adds support for multiple genome references and quick processing with MariaDB. """,
+                ")",
             ]
         ),
         html.Br(),

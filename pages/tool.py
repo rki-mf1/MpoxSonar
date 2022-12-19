@@ -1,8 +1,10 @@
 import dash
 from dash import dcc
 from dash import html
-from dash import Input
-from dash import Output
+from dash.dependencies import Input, Output, State
+
+
+from dash import callback_context
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
@@ -13,35 +15,30 @@ from pages.util_tool_checklists import checklist_3
 from pages.util_tool_checklists import checklist_4
 from pages.util_tool_checklists import query_card
 
-
 dash.register_page(__name__, path="/Tool")
 
 app = dash.Dash(__name__)
 
 # example data for example map
 note_data = pd.read_csv('data/Data.csv')
+
 coord_data = pd.read_csv('data/location_coordinates.csv')
-
-result = pd.merge(note_data, coord_data, left_on='COUNTRY', right_on='name')
-
-#print(note_data.columns)
-
-result['number'] = [len(x.split(',')) for x in result['NUC_PROFILE']]
-new_res = result.groupby(['COUNTRY', 'lon', 'lat', 'RELEASE_DATE'])['number'].sum().reset_index()
-print(new_res.columns)
+data = pd.read_csv('data/data.csv')
+print(data.columns)
+result = pd.merge(data, coord_data, left_on='value_text', right_on='name')
 
 fig = px.scatter_mapbox(
-    new_res,
+    result,
     lat="lat",
     lon="lon",
-    size="number",
-    animation_frame='RELEASE_DATE',
+    color='label',
+    size="count(*)",
+    #animation_frame='value_date',
     #size_max=15,
-    zoom=10,
+    zoom=0.75,
     mapbox_style="carto-positron"
 )
 
-print(new_res)
 
 inputs = html.Div(
     [
@@ -55,6 +52,7 @@ inputs = html.Div(
 
 layout = html.Div(
     [
+        html.Div(id='app-1-display-value', children=''),
         html.Div(
             [
                 dbc.Form(
@@ -92,8 +90,17 @@ layout = html.Div(
             ]
         ),
         html.P(id="radioitems-checklist-output"),
+        html.Div(id='test_output', children=''),
         query_card,
         html.Br(style={"line-height": "10"}),
+
+        html.Div(dcc.Input(id='input-box', type='text')),
+        html.Button('Submit', id='button-example-1'),
+        html.Div(
+            id='output-container-button',
+            children='Enter a value and press submit'
+        ),
+
         html.Div(
             [
                 html.Br(),
@@ -112,21 +119,20 @@ layout = html.Div(
 )
 
 
+
+
+
+
+
 @app.callback(
-    Output("checklist-output", "children"),
-    [
-        Input("1_checklist_input", "value"),
-        Input("2_checklist_input", "value"),
-        Input("3_checklist_input", "value"),
-        Input("4_checklist_input", "value"),
-    ],
-)
-def select_all_none(all_selected, options):
-    all_or_none = []
-    all_or_none = [option["value"] for option in options if all_selected]
-    return all_or_none
+    Output('output-container-button', 'children'),
+    [Input('button-example-1', 'n_clicks')],
+    [State('input-box', 'value')],
+    prevent_initial_call=True,)
+def update_output(n_clicks, value):
+    return 'The input value was "{}" and the button has been clicked {} times'.format\
+            (
+            len(value),
+            n_clicks
+        )
 
-
-@app.callback(Output("query_output", "children"), [Input("query_input", "value")])
-def output_text(value):
-    return value
