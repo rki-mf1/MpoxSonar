@@ -10,10 +10,11 @@ layout = html.Div(
         html.H1(children="Project Description"),
         html.Div(
             children="""
-                        Monkeypox is an infectious disease caused by a smallpox virus, recently spreading in multiple countries with over 16,500 cases and declared a global emergency by the World Health Organization (citation).
-                        Normally, the virus is rarely observed outside of Africa, but in recent months it has occurred in over 11 countries in other continents [CITATION].
+                        MPox is an infectious disease caused by a smallpox virus, recently spreading in multiple countries with over 82,800 cases and declared a global emergency by the World Health Organization <a href="https://www.cdc.gov/poxvirus/monkeypox/response/2022/world-map.html">[1]</a>.
+                        Normally, the virus is rarely observed outside of Africa, but in recent months it has occurred in over 110 countries <a href="https://www.cdc.gov/poxvirus/monkeypox/response/2022/world-map.html">[1]</a>.
                         This alarming behavior demands action and highlights the need for genomic surveillance and spatio-temporal analyses.
-                        Therefore, the Robert Koch Institute (RKI) together with the Hasso Platter Institute (HPI) joined forces to and adapted the tool covSonar - a database framework developed at the RKI for SARS-CoV-2 - to Monkeypox.
+                        Therefore, the Robert Koch Institute (RKI) together with the Hasso Platter Institute (HPI), joined forces to produce such a dashboard with a strong database background, inspired by their earlier work 
+                        on <a href="https://github.com/rki-mf1/covsonar">CovSonar</a> - a database framework developed at the RKI for SARS-CoV-2.
                     """
         ),
         html.Br(),
@@ -159,7 +160,7 @@ layout = html.Div(
                         ),
                         dbc.CardBody(
                             [
-                                html.P("Jorge Sanchez-Cortes"),
+                                html.P("Jorge Sánchez Cortés"),
                             ]
                         ),
                     ],
@@ -237,11 +238,11 @@ layout = html.Div(
             className="dbc_card",
             style={"text-align": "center"},
         ),
-        html.H1(children="Data sources:"),
+        html.H1(children="Data source:"),
         html.Div(
             [
                 """
-                The Datasource of MPOX Radar is NCBI virus (""",
+                The genomic and metadata stem from publicly available data submitted to NCBI (""",
                 dcc.Link(
                     html.A("Link"),
                     href="https://www.ncbi.nlm.nih.gov/labs/virus/vssi/#/",
@@ -252,6 +253,11 @@ layout = html.Div(
         ),
         html.Br(),
         html.H1(children="Link to code:"),
+        html.Div(
+            children="""
+                        Our code is open source and shared under the <a href="https://choosealicense.com/licenses/gpl-3.0/">GNU GPL license </a>. You can find a link to the code below:
+                    """
+        ),
         dcc.Link(
             html.A("Link to Github"),
             href=("https://github.com/ferbsx/MPXRadar-frontend"),
@@ -261,7 +267,7 @@ layout = html.Div(
         html.H1(children="Acknowledgements:"),
         html.Div(
             children="""
-                        ...
+                        We want to give a big thanks to all our test users, especially in the central German Public Health institute, for giving us their valuable feedback and helping us better our tool. Furthermore, we want to thank the creators of <a href="https://doi.org/10.1093/bioinformatics/btac411">CovRadar</a> and <a href="https://github.com/rki-mf1/covsonar">CovSonar</a> for showing the need for genomic surveillance dashboard and database for SARS-CoV-2, therefore inspiring the initiation of this project. We are always open to feedback and promise a continued support and developement of our tool. <a href="Contact">Don't hesitate to get in touch.</a>
                     """
         ),
     ]
