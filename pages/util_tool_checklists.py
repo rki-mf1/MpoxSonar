@@ -8,10 +8,9 @@ checklist_1 = dbc.Card(
             dbc.Label("Reference genome: "),
             dbc.Checklist(
                 options=[
-                    {"label": "MPXV-COG_2003_358", "value": 1},
-                    {"label": "MPXV-USA_2003_039", "value": 2},
-                    {"label": "MPXV-xxx", "value": 3},
-                    {"label": "...", "value": 4},
+                    {"label": "NC_063383.1", "value": 1},
+                    {"label": "ON563414.1", "value": 2},
+                    {"label": "MT903344.1", "value": 3},
                 ],
                 value=[],
                 id="1_checklist_input",
@@ -23,7 +22,7 @@ checklist_1 = dbc.Card(
 checklist_2 = dbc.Card(
     dbc.CardBody(
         [
-            dbc.Label("Mutatioins displayed: "),
+            dbc.Label("Mutations displayed: "),
             dbc.Checklist(
                 options=[
                     {"label": "All", "value": 1},
@@ -41,7 +40,7 @@ checklist_2 = dbc.Card(
 checklist_3 = dbc.Card(
     dbc.CardBody(
         [
-            dbc.Label("Visualisatioin method: "),
+            dbc.Label("Visualisation method: "),
             dbc.Checklist(
                 options=[
                     {"label": "Frequencies", "value": 1},
@@ -82,7 +81,7 @@ query_card = dbc.Card(
                 [
                     dbc.Checklist(
                         options=[
-                            {"label": "Direct MPXSonar query input: ", "value": 1}
+                            {"label": "Direct MPoxSonar query input: ", "value": 1}
                         ],
                         id="query=input",
                     )
@@ -92,7 +91,7 @@ query_card = dbc.Card(
                 [
                     dbc.Input(
                         id="query_input",
-                        placeholder="Type here MPXSonar query...",
+                        placeholder="Type MPoxSonar query here...",
                         type="text",
                         size="100%",
                     ),
