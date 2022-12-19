@@ -41,7 +41,7 @@ row2 = html.Tr(
 )
 row3 = html.Tr(
     [
-        html.Td("10"),
+        html.Td("Windows"),
         html.Td("10"),
         html.Td("Not tested"),
         html.Td("61. 0"),
