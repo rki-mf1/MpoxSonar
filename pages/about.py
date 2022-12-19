@@ -8,7 +8,7 @@ dash.register_page(__name__, path="/About")
 layout = html.Div([
     html.H1(children="Project Description"),
     html.Div(["""
-                        MPox is an infectious disease caused by a smallpox virus, recently spreading in multiple countries with over 82,800 cases and declared a global emergency by the World Health Organization """,
+                        Mpox is an infectious disease caused by a smallpox virus, recently spreading in multiple countries with over 82,800 cases and declared a global emergency by the World Health Organization """,
               dcc.Link(
                   html.A("[1]"),
                   href="https://www.cdc.gov/poxvirus/monkeypox/response/2022/world-map.html",

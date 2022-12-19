@@ -13,7 +13,7 @@ table = dbc.Table(table_body, bordered=True)
 
 app.layout = html.Div(
     [
-        html.H1("MPox Radar", style={"display": "inline-block"}),
+        html.H1("MPoxRadar", style={"display": "inline-block"}),
         html.Img(
             src=r"assets/hpi_logo.png",
             alt="Img_HPI",

@@ -15,7 +15,7 @@ layout = (
             html.H2(children="MPoxRadar Help Page:", style={"textAlign": "center"}),
             html.Div(
                 children="""
-                MPoxRadar is a website visualising the distribution of MPox mutations and allowing the user to filter which information they are interested in having visualised. The website also allows the download of the selected filter of information. In the following section, you will see an explanation for each functionality and section of the “Tool” page of our website. Followed by a section dedicated to answering frequently asked questions (FAQ) and a description of the tested browser compatibility of our website.
+                MPoxRadar is a website visualising the distribution of mpox mutations and allowing the user to filter which information they are interested in having visualised. The website also allows the download of the selected filter of information. In the following section, you will see an explanation for each functionality and section of the “Tool” page of our website. Followed by a section dedicated to answering frequently asked questions (FAQ) and a description of the tested browser compatibility of our website.
             """,
                 style={"textAlign": "center"},
             ),
@@ -47,7 +47,7 @@ layout = (
                                 [
                                     html.Div(
                                         """
-                                       Here you see a list of reference genomes to choose from. As MPox has no unanimously defined reference genome (given its widespread and different clusters), we allow users to choose a reference genome from which the mutations will be calculated."""
+                                       Here you see a list of reference genomes to choose from. As mpox has no unanimously defined reference genome (given its widespread and different clusters), we allow users to choose a reference genome from which the mutations will be calculated."""
                                     )
                                 ]
                             ),
@@ -92,7 +92,7 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("MT903344.1"),
-                                            """ MPox virus isolate MPXV-UK_P2 (as stated """,
+                                            """ Mpox virus isolate MPXV-UK_P2 (as stated """,
                                             dcc.Link(
                                                 html.A("here"),
                                                 href="https://labs.epi2me.io/basic-monkeypox-workflow/#workflow-steps",
@@ -139,7 +139,7 @@ layout = (
                                 ]
                             ),
                         ]
-                    ),                    
+                    ),
                     html.Li(html.Strong("visualisation methods:")),
                     html.Ul(
                         [
@@ -158,7 +158,8 @@ layout = (
                                     ),
                                     html.Li(
                                         [
-                                            html.Strong("Increasing / Decreasing / Constant trend"),
+                                            html.Strong(
+                                                "Increasing / Decreasing / Constant trend"),
                                             """ with one of these options, you can visualise the trend of the mutations growth. These are calculated using linear regression in the backend. """,
                                         ]
                                     ),
@@ -170,7 +171,7 @@ layout = (
                             html.Li("The default is to show frequencies."),
                         ]
                     ),
-                    
+
                     html.Li(html.Strong("Sequencing Technology used:")),
                     html.Ul(
                         [

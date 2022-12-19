@@ -46,7 +46,7 @@ layout = (
             html.Div("Prof. Dr. Bernhard Renard", style={"margin-bottom": "10px"}),
             html.H4("5. Purpose"),
             html.P(
-                "The purpose of the MPXRadar service is to provide insights into mutation frequency in public MonkeyPox (mpox) genomes as well as temporal and spatial distributions of genomic mpox variants."
+                "The purpose of the MPoxRadar service is to provide insights into mutation frequency in public MonkeyPox (mpox) genomes as well as temporal and spatial distributions of genomic mpox variants."
             ),
             html.H4("6. Scope of Data Processing"),
             html.H4("Storage of Browser Data"),
