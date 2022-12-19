@@ -15,7 +15,7 @@ layout = (
             html.H2(children="MPoxRadar Help Page:", style={"textAlign": "center"}),
             html.Div(
                 children="""
-                MPoxRadar is a website visualising the distribution of MonkeyPox mutations and allowing the user to filter which information they are interested in having visualised. The website also allows the download of the selected filter of information. In the following section you will see an explanation for each functionality and section of the “Tool” page of our website. Followed by a section dedicated to answering frequently asked questions (FAQ) and a description of the tested browser compatibility of our website.
+                MPoxRadar is a website visualising the distribution of MPox mutations and allowing the user to filter which information they are interested in having visualised. The website also allows the download of the selected filter of information. In the following section, you will see an explanation for each functionality and section of the “Tool” page of our website. Followed by a section dedicated to answering frequently asked questions (FAQ) and a description of the tested browser compatibility of our website.
             """,
                 style={"textAlign": "center"},
             ),
@@ -26,7 +26,7 @@ layout = (
             """,
                 style={"margin-left": "10px"},
             ),
-            html.Img(
+            <!-- html.Img(
                 src="assets/example_ReferenceGenome.png",
                 style={
                     "float": "right",
@@ -34,7 +34,7 @@ layout = (
                     "max-width": "200px",
                     "height": "auto",
                 },
-            ),
+            ), -->
             html.Ul(
                 [
                     html.Li(
@@ -47,7 +47,7 @@ layout = (
                                 [
                                     html.Div(
                                         """
-                                       Here you see a list of reference genomes to choose from. As MonkeyPox has no unanimously defined reference genome (given its widespread and different clusters), we allow users to choose a reference genome from which the mutations will be calculated from."""
+                                       Here you see a list of reference genomes to choose from. As MPox has no unanimously defined reference genome (given its widespread and different clusters), we allow users to choose a reference genome from which the mutations will be calculated."""
                                     )
                                 ]
                             ),
@@ -61,7 +61,7 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("NC_063383.1"),
-                                            """ This genome is one of the reference genomes pointed out by the National Center for Biotechnology Information""",
+                                            """ This genome is one of the reference genomes pointed out by the National Center for Biotechnology Information """,
                                             "(",
                                             dcc.Link(
                                                 html.A("NCBI"),
@@ -79,8 +79,8 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("ON563414.1"),
-                                            """ USA Center for Disease Control sequence (as stated""",
-                                            "(",
+
+                                            """ USA Center for Disease Control sequence (as stated """,
                                             dcc.Link(
                                                 html.A("here"),
                                                 href="https://labs.epi2me.io/basic-monkeypox-workflow/#workflow-steps",
@@ -92,8 +92,7 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("MT903344.1"),
-                                            """ Monkeypox virus isolate MPXV-UK_P2 (as stated""",
-                                            "(",
+                                            """ MPox virus isolate MPXV-UK_P2 (as stated """,
                                             dcc.Link(
                                                 html.A("here"),
                                                 href="https://labs.epi2me.io/basic-monkeypox-workflow/#workflow-steps",
@@ -110,7 +109,7 @@ layout = (
                             html.Li("The default reference genome is NC_063383.1"),
                         ]
                     ),
-                    html.Img(
+                    <!--html.Img(
                         src="assets/example_MutationsDisplayed.png",
                         style={
                             "float": "right",
@@ -118,7 +117,7 @@ layout = (
                             "max-width": "200px",
                             "height": "auto",
                         },
-                    ),
+                    ), -->
                     html.Li(html.Strong("Mutations:")),
                     html.Ul(
                         [
@@ -140,32 +139,60 @@ layout = (
                                 ]
                             ),
                         ]
-                    ),
-                    html.Li(
+                    ),                    
+                    html.Li(html.Strong("visualisation methods:")),
+                    html.Ul(
                         [
-                            "After choosing a reference genome, the ",
-                            html.Strong("list of Mutations"),
-                            " will be displayed for the user to choose from.",
+                            html.Li(
+                                [
+                                    "The user can choose between the following four visualisation methods"
+                                ]
+                            ),
+                            html.Ul(
+                                [
+                                    html.Li(
+                                        [
+                                            html.Strong("Frequencies"),
+                                            """ with this option, you can visualise the frequency of mutations in different locations. The bigger the size of the shown bubble, the higher the frequency of the mutation there. """,
+                                        ]
+                                    ),
+                                    html.Li(
+                                        [
+                                            html.Strong("Increasing / Decreasing / Constant trend"),
+                                            """ with one of these options, you can visualise the trend of the mutations growth. These are calculated using linear regression in the backend. """,
+                                        ]
+                                    ),
+                                ]
+                            ),
+                            html.Li(
+                                "The user can choose exactly one visualisation method from this list. "
+                            ),
+                            html.Li("The default is to show frequencies."),
                         ]
                     ),
-                    html.Li(
+                    
+                    html.Li(html.Strong("Sequencing Technology used:")),
+                    html.Ul(
                         [
-                            "There is a list of ",
-                            html.Strong("visualisation methods"),
-                            ", since visualising a trend arrow on the map is more complicated, we decided to have the trend be a visualising option instead.",
-                        ]
-                    ),
-                    html.Li(
-                        [
-                            html.Strong("Sequencing Technologies"),
-                            " can furthermore be chosen from a list.",
+                            html.Li(
+                                [
+                                    "You can choose which seuqncing technologies you want to see on the map. Given that this field is an optional field to fill for sequence uploaders, it is not always filled. Please keep that in mind while using this filter."
+                                ]
+                            ),
+                            html.Li(
+                                [
+                                    "In order to allow for easy access to choosing all technologies, there is always an option to choose “",
+                                    html.Strong("all"),
+                                    "”, which is also the option chosen by default.",
+                                ]
+                            ),
                         ]
                     ),
                     html.Li(
                         [
                             "Users can also directly give in a ",
-                            html.Strong("query using the MPXSonar notation"),
-                            ". This text should be parsed and checked before being passed to the database to avoid security leaks.",
+                            html.Strong("query using the MPoxSonar notation"),
+                            ". You can read more about the possible commands below.",
                         ]
                     ),
                     html.Li(
@@ -175,7 +202,7 @@ layout = (
                             " will then use the chosen visualisation method and visualise the mutations chosen for the time period selected.",
                         ]
                     ),
-                    html.Li(
+                    <!-- html.Li(
                         [
                             "Users can press the “",
                             html.Strong("Play animation"),
@@ -183,10 +210,10 @@ layout = (
                             html.Strong("Download animation as GIF” button"),
                             ".",
                         ]
-                    ),
+                    ), -->
                     html.Li(
                         [
-                            "Furthermore, the query results can be shown as a table by pressing the “Show results in a table” button. Here, we need to be careful not to show all results if the table is too large, as to not overwhelm the user's memory or crash the website."
+                            "Furthermore, the query results can be shown as a table by pressing the “Show results in a table” button."
                         ]
                     ),
                     html.Li(
@@ -194,13 +221,6 @@ layout = (
                             "The result should also be downloadable using the button “",
                             html.Strong("Download results as a csv file"),
                             "”.",
-                        ]
-                    ),
-                    html.Li(
-                        [
-                            "A brief explanation of each field on top needs to be added to the ",
-                            html.Strong("“i” button"),
-                            ". For the “direct MPXSonar query input”, this could be a sentence linking to the MPXSonar documentation which explains what each tag is and how to use it.",
                         ]
                     ),
                 ]

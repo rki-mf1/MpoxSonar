@@ -9,7 +9,7 @@ row1 = html.Tr(
                     html.Li(
                         [
                             html.A(
-                                "About MPXRadar", href="About", style={"color": "black"}
+                                "About MPoxRadar", href="About", style={"color": "black"}
                             )
                         ],
                         style={"margin-bottom": "10px"},
@@ -23,11 +23,11 @@ row1 = html.Tr(
                         style={"margin-bottom": "10px"},
                     ),
                     html.Li(
-                        [html.A("Imprint", href="Home", style={"color": "black"})],
+                        [html.A("Imprint & Privacy Policy", href="Home", style={"color": "black"})],
                         style={"margin-bottom": "10px"},
                     ),
                     html.Li(
-                        [html.A("Contact Us", href="Contact", style={"color": "black"})]
+                        [html.A("Contact", href="Contact", style={"color": "black"})]
                     ),
                 ],
                 style={"list-style-type": "none"},

@@ -1,11 +1,12 @@
 import dash
 from dash import dcc
 from dash import html
+
 from dash.dependencies import Input, Output, State
 
 from dash import callback
-
 from dash import callback_context
+
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
@@ -60,7 +61,6 @@ fig = px.scatter_mapbox(
     mapbox_style="carto-positron"
 )
 
-
 inputs = html.Div(
     [
         dbc.Form([checklist_1]),
@@ -73,7 +73,6 @@ inputs = html.Div(
 
 layout = html.Div(
     [
-        html.Div(id='app-1-display-value', children=''),
         html.Div(
             [
                 dbc.Form(
@@ -111,7 +110,6 @@ layout = html.Div(
             ]
         ),
         html.P(id="radioitems-checklist-output"),
-        html.Div(id='test_output', children=''),
         query_card,
         html.Br(style={"line-height": "10"}),
         html.Div(
@@ -132,6 +130,7 @@ layout = html.Div(
 )
 
 
+
 @callback(
     Output("checklist-output", "children"),
     [
@@ -147,7 +146,7 @@ def select_all_none(all_selected, options):
     return all_or_none
 
 
+
 @callback(Output("query_output", "children"), [Input("query_input", "value")])
 def output_text(value):
     return value
-
