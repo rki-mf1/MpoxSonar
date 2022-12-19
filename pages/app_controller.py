@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 
 # DEPENDENCIES
-
 import sys
 from textwrap import fill
 
 import pandas as pd
 
+from .config import DB_URL
+from .DBManager import DBManager
 from .libs.mpxsonar.src.mpxsonar.basics import sonarBasics
 from .libs.mpxsonar.src.mpxsonar.dbm import sonarDBManager
 
@@ -100,12 +101,23 @@ class sonarBasicsChild(sonarBasics):
                 rows[-1].append(dt)
                 rows[-1].append(dbm.properties[prop]["querytype"])
                 rows[-1].append(dbm.properties[prop]["standard"])
-
             # output = tabulate(rows, headers=cols, tablefmt="orgtbl")
             # output = output + "\n"
             # output = output + "DATE FORMAT" + "\n"
             output = pd.DataFrame(rows, columns=cols)
-            print(output)
+            # remove some column
+            output = output[
+                ~output["name"].isin(
+                    [
+                        "AA_PROFILE",
+                        "AA_X_PROFILE",
+                        "NUC_N_PROFILE",
+                        "NUC_PROFILE",
+                        "IMPORTED",
+                        "MODIFIED",
+                    ]
+                )
+            ]
         return output
 
 
@@ -170,3 +182,26 @@ def match_controller(args):  # noqa: C901
         reference=args.reference,
     )
     return output
+
+
+def get_all_references():
+    _list = []
+    with DBManager() as dbm:
+        list_dict = dbm.references
+        for _dict in list_dict:
+            # print(_dict)
+            _list.append({"value": _dict["accession"], "label": _dict["accession"]})
+    # logging_radar.info(_dict)
+    return _list
+
+
+def get_value_by_reference(checked_ref):
+    output_df = pd.DataFrame()
+    for ref in checked_ref:
+        print("Query " + ref)
+        _df = sonarBasicsChild.match(DB_URL, reference=ref, debug="False")
+        if type(_df) == str:
+            continue
+        output_df = pd.concat([output_df, _df], ignore_index=True)
+
+    return output_df

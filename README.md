@@ -37,3 +37,11 @@ Quick Demo, please run below.
 ```
 python example.app.py
 ```
+
+
+----
+
+To run the application with a specific database ```mpox_testdata``` (or another database) on ```127.0.0.1``` (or another HOST) and a specific ```<USER>```:
+```
+MYSQL_HOST=127.0.0.1 MYSQL_USER=<USER> MYSQL_PW= MYSQL_DB=mpox_testdata python app.py
+```
