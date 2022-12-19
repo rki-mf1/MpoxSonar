@@ -26,15 +26,15 @@ layout = (
             """,
                 style={"margin-left": "10px"},
             ),
-            <!-- html.Img(
-                src="assets/example_ReferenceGenome.png",
-                style={
-                    "float": "right",
-                    "width": "100%",
-                    "max-width": "200px",
-                    "height": "auto",
-                },
-            ), -->
+            # html.Img(
+            #     src="assets/example_ReferenceGenome.png",
+            #     style={
+            #         "float": "right",
+            #         "width": "100%",
+            #         "max-width": "200px",
+            #         "height": "auto",
+            #     },
+            # ),
             html.Ul(
                 [
                     html.Li(
@@ -109,15 +109,15 @@ layout = (
                             html.Li("The default reference genome is NC_063383.1"),
                         ]
                     ),
-                    <!--html.Img(
-                        src="assets/example_MutationsDisplayed.png",
-                        style={
-                            "float": "right",
-                            "width": "100%",
-                            "max-width": "200px",
-                            "height": "auto",
-                        },
-                    ), -->
+                    # html.Img(
+                    #     src="assets/example_MutationsDisplayed.png",
+                    #     style={
+                    #         "float": "right",
+                    #         "width": "100%",
+                    #         "max-width": "200px",
+                    #         "height": "auto",
+                    #     },
+                    # ),
                     html.Li(html.Strong("Mutations:")),
                     html.Ul(
                         [
@@ -202,15 +202,13 @@ layout = (
                             " will then use the chosen visualisation method and visualise the mutations chosen for the time period selected.",
                         ]
                     ),
-                    <!-- html.Li(
+                    html.Li(
                         [
                             "Users can press the “",
                             html.Strong("Play animation"),
-                            "” button to see the visualisations one after the other from a certain date. This video could also be downloaded as a gif using the “",
-                            html.Strong("Download animation as GIF” button"),
-                            ".",
+                            "” button to see the visualisations one after the other from a certain date.",
                         ]
-                    ), -->
+                    ),
                     html.Li(
                         [
                             "Furthermore, the query results can be shown as a table by pressing the “Show results in a table” button."
