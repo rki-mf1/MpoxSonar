@@ -10,7 +10,13 @@ layout = (
             html.H1(children="Contact us"),
             html.Div(
                 children="""
-                Please open an issue on our GitHub repository. if you find a bug or if something is unclear.
+                Thank you for using our tool! We would love to get your feedback and improve over time. Please don't hesitate to contact us per E-mail using the following address: <a href="mailto:FuchsS@rki.de">FuchsS (at) rki.de</a>. 
+            """
+            ),
+            html.Br(),
+            html.Div(
+                children="""
+                If you have any questions or wishes regarding the functionalities of the website, please open an issue on our GitHub repository.
             """
             ),
             html.Br(),
@@ -23,12 +29,6 @@ layout = (
                         target="_blank",
                     ),
                 ]
-            ),
-            html.Br(),
-            html.Div(
-                children="""
-                You can also email us using the following address: monkeyporadar-team@xx.xx
-            """
             ),
         ],
     ),
