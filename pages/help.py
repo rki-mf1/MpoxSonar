@@ -79,6 +79,7 @@ layout = (
                                     html.Li(
                                         [
                                             html.Strong("ON563414.1"),
+
                                             """ USA Center for Disease Control sequence (as stated """,
                                             dcc.Link(
                                                 html.A("here"),
@@ -138,8 +139,7 @@ layout = (
                                 ]
                             ),
                         ]
-                    ),
-                    
+                    ),                    
                     html.Li(html.Strong("visualisation methods:")),
                     html.Ul(
                         [
