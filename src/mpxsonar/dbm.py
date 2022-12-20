@@ -80,7 +80,7 @@ class sonarDBManager:
         logging.basicConfig(format="%(asctime)s %(message)s")
 
         if db_url is None:
-            logging.warning("No --db is given, MPXSonar use variables from .env file.")
+            # logging.warning("No --db is given, MPXSonar use variables from .env file.")
             db_url = DB_URL
 
         # public attributes
@@ -253,7 +253,7 @@ class sonarDBManager:
 
         >>> dbm = getfixture('init_readonly_dbm')
         >>> dbm.default_reference
-        'MN908947.3'
+        'NC_063383.1'
 
         """
         if self.__default_reference is False:
@@ -546,7 +546,8 @@ class sonarDBManager:
             rowid = rowid["id"]
             # print("rowid", rowid)
         else:
-            print("Cannot get rowid:", rowid)
+            logging.error("Cannot get rowid:", rowid)
+            sys.exit("Cannot get rowid:")
         return rowid
 
     def insert_molecule(
@@ -2251,10 +2252,24 @@ class sonarDBManager:
 
             """
             # [tmp solution.]- we remove unused column TODO: fix this in the future.
-            df_1.drop(
-                columns=["NUC_PROFILE", "AA_PROFILE", "NUC_N_PROFILE", "AA_X_PROFILE"],
-                inplace=True,
-            )
+            # backwards compatibility
+            if df_1.columns.isin(
+                [
+                    "NUC_PROFILE",
+                    "AA_PROFILE",
+                    "NUC_N_PROFILE",
+                    "AA_X_PROFILE",
+                ]
+            ).all():
+                df_1.drop(
+                    columns=[
+                        "NUC_PROFILE",
+                        "AA_PROFILE",
+                        "NUC_N_PROFILE",
+                        "AA_X_PROFILE",
+                    ],
+                    inplace=True,
+                )
             # NOTE: some samples might have only meta info, if we choose inner map
             # the result will be intersection of two datafram.
             merge_df = pd.merge(
@@ -2286,7 +2301,7 @@ class sonarDBManager:
             # TODO: currently we count only samples not the sample-aligned wise.
             logging.info("'--count' will return only unique sample.")
             sql = (
-                "SELECT COUNT(DISTINCT s2p.id) AS `count` FROM ("
+                "SELECT COUNT(s2p.id) AS `count` FROM ("
                 + sample_selection_sql
                 + ") AS s2p"
             )
@@ -2322,7 +2337,9 @@ class sonarDBManager:
 
     @staticmethod
     def optimize(dbfile):
-        logging.info("Currently, we don't support this command through mpxsonar yet.")
+        logging.WARNING(
+            "Currently, we don't support this command through our application yet."
+        )
         logging.info(
             "Please run: 'mysqlcheck -u [username] -p -o mpx' in your terminal instead."
         )

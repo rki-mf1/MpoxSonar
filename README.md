@@ -1,23 +1,24 @@
-<img src="logo.png"  width="134" height="134" align="right"><br><br><br><br><br>
+# MPoxSonar
 
-# MPXSonar
+MPoxSonar is an extension of Covsonar (the database-driven system for handling genomic sequences of SARS-CoV-2 and screening genomic profiles, developed at the RKI (https://github.com/rki-mf1/covsonar).) that adds support for multiple genome references and quick processing with MariaDB.
 
-MPXSonar is a database-driven system for handling genomic sequences and screening genomic profiles.
-
-What's new in MPXSonar
+What's new in MPoxSonar
 * New design
     * Improve workflows
     * Performance improvements
 * Exciting new features
-	* Support multiple pathogens
-	* Flexible in adding meta information
+	* Support multiple genome references
 * New database design
-	* New database schema
-    * Retrieval efficiency
-	* Significantly smaller than the previous version
+	* New database schema for MariaDB
 
-## 1. Installation (Dev.)
+Now, MPoxSonar is mainly used for MonkeyPox virus but it can be used with other pathogens.
 
+## Prerequisite software
+
+1. Install MariaDB server (MySQL should work too!, not tested yet).
+2. Install conda environment.
+
+## 1. MPoxSonar Installation.
 
 ### Stable version.🔖
 
@@ -34,13 +35,14 @@ conda activate mpxsonar-dev  # needs to be activated for the following commands 
 cd mpxsonar
 poetry install
 # test
-sonar
+sonar -h
 ```
 
-(Testing or Nightly build or Adding a feature or Fixing a bug)
+Finally, you need to copy and change name from ".env.template" file to ".env for a convenient of database connection, and then you edit the file according to your system.
+
 ## 2. Usage
 
-In MPXSonar, the table below shows the several commands that can be called.
+In MPoxSonar, the table below shows the several commands that can be called.
 
 | subcommand | purpose                                                             |
 |------------|---------------------------------------------------------------------|
@@ -49,12 +51,13 @@ In MPXSonar, the table below shows the several commands that can be called.
 | list-prop  | view sample properties added to the database             |
 | add-prop    | add a sample property to the database                    |
 | delete-prop       | delete a sample property from the database |
-| match   |  get mutations profiles for given accessions                                        |
-| restore   | restore sequence(s) from the database                                         |
-| info   |  show software and database info.                                        |
-| optimize   | optimizes the database                                         |
-| db-upgrade   | upgrade a database to the latest version                                         |
-| update-lineage-info | download latest lineage information                                       |
+| match   |  Get mutations profiles based on a given query                                        |
+| restore   | Restore sequence(s) from the database                                         |
+| info   |  Show software and database info.                                        |
+| optimize   | Optimizes the database                                         |
+| add-ref   | Add a reference genome to the database              |
+| delete-ref   | Delete a reference genome in database       |
+| list-ref   | View all references in the database                        |
 
 Each tool provides a help page that can be accessed with the `-h` option.
 
@@ -69,28 +72,22 @@ sonar import -h
 
 First, we have to create a new database instance.
 ```sh
-sonar setup --db test.db
+sonar setup
 ```
-
-Or we can create a new database instance with predefined properties.
+Or we can create a new database with a defined URL.
 ```sh
-sonar setup --db test.db --auto-create
+sonar setup --db https://super_user:123456@localhost:3306/mpx
 ```
-> TIP 🕯️: We can use [DB Browser](https://sqlitebrowser.org/) to visualise or manipulate the database file.
 
-By default, the MN908947.3 (SARS-CoV-2) is used as a reference. If we want to set up a database for a different pathogen, we can add `--gbk` following with Genbank file. (⚠️WARNING: currently, MPXSonar is tailored for SARS-CoV-2, so some functions might not function with other pathogens.)
+> Attention ⚠️: The database name is a fixed name, namely "mpx".
 
-Example;
-```sh
-sonar setup --db test.db --auto-create --gbk Ebola.gb
-```
-> TIP 🕯️: We recommend using a database with only one reference genome.
+> Attention ⚠️: If you already set up .env file, then there is no need to add the --db tag in the command. The rest of our example command will not include the "--db" tag. We assume there is the .env file on your system.
 
-> NOTE 📌:  [how to download genbank file](https://ncbiinsights.ncbi.nlm.nih.gov/2017/05/08/genome-data-download-made-easy/)
+> Note 🕯️: By default, NC_063383.1 (Monkeypox virus, 2022) is used as a reference when running the setup command. If we want to set up a database for a different reference genome, we can add `--gbk` following the Genbank file.
 
 ### 2.2 Property management (`list-prop`, `add-prop` and `delete-prop`)
 
-In MPXSonar, users can now arbitrarily add meta information or properties into a database to fit a specific project objective.
+In MPoxSonar, users can now arbitrarily add meta information or properties into a database to fit a specific project objective.
 
 To add properties, we can use the `add-prop` command to add meta information into the database.
 
@@ -101,26 +98,26 @@ The required arguments are listed below when we use `add-prop` command
 
 ```sh
 # for example
-sonar add-prop --db test.db --name LINEAGE --dtype text --descr "store Lineage"
+sonar add-prop --name LINEAGE --dtype text --descr "store Lineage"
 #
-sonar add-prop --db test.db --name AGE --dtype integer --descr "age information"
+sonar add-prop --name AGE --dtype integer --descr "age information"
 #
-sonar add-prop --db test.db --name DATE_DRAW --dtype date --descr "sampling date"
+sonar add-prop --name DATE_DRAW --dtype date --descr "sampling date"
 ```
 > TIP 🕯️: `sonar add-prop -h ` to see all available arguments.
 
-⚠️ WARNING: We reserve **'sample'** keyword that cannot be used as a property name
+⚠️ WARNING: We reserve **'sample'** keyword, so you cannot use this name as a property.
 (e.g., ⛔❌`--name sample`) because we use this name as the ID in the database schema.⚠️
 
 To view the added properties, we can use the `list-prop` command to display all information.
 ```sh
-sonar list-prop --db test.db
+sonar list-prop
 ```
 
 The `delete-prop` command is used to delete an unwanted property from the database.
 
 ```sh
-sonar delete-prop --db test.db  --name SEQ_REASON
+sonar delete-prop --name SEQ_REASON
 ```
 
 The program will ask for confirmation of the action.
@@ -128,21 +125,43 @@ The program will ask for confirmation of the action.
 Do you really want to delete this property? [YES/no]: YES
 ```
 
-### 2.3 Adding genomes and meta information to the database (import)
+### 2.3 Reference Management (add-ref, list-ref, delete-ref).
 
-This example shows how we add sequence along with meta information.
+> NOTE 📌: [how to download genbank file](https://ncbiinsights.ncbi.nlm.nih.gov/2017/05/08/genome-data-download-made-easy/)
 
-We have sequence file name `valid.fasta` and meta-info file name `day.tsv`.
+Add new reference.
+```sh
+sonar add-ref --gbk MT903344.1.gb
+```
+>⚠️ Attention: Some references did not annotate the gene name but just gave only "locus_tag" in the GenBank file. The program will use "locus_tag" instead of the gene name when adding to the database. This annotation will affect the search (match) command for protein mutation.
+For example, we want to search for the D88K mutation. The reference MT903344.1 used MPXV-UK_ as the protein ID, so when we perform the search, we will write it as "MPXV-UK_P2-076:D88K", while the NC_063383.1 use "OPG093" (e.g., OPG093:D88K).
+
+List all references in a database
+```sh
+sonar list-ref
+```
+
+Delete reference.
+```sh
+sonar delete-ref -r MT903344.1
+```
+
+### 2.4 Adding genomes and meta information to the database (`import` command)
+
+This example shows how we add sequence along with meta information to a database.
+
+let's assume we have sequence file name `valid.fasta` and meta-info file name `day.tsv`.
 
 valid.fasta
 ```
 >IMS-00113
 CCAACCAACTTTCGATCTCTTG
 ```
+
 day.tsv
 ```
-IMS_ID		SAMPLING_DATE	LINEAGE
-IMS-00113	2021-02-04		B.1.1.7
+IMS_ID          COLLECTION_DATE	    SEQ_TECH
+IMS-00113	2021-02-04		    Illumina NovaSeq 6000
 ```
 
 The required argument for the `import` command are listed as follows;
@@ -157,33 +176,36 @@ The required argument for the `import` command are listed as follows;
 
 So, example
 ```sh
-sonar import --db test.db --fasta valid.fasta --tsv day.tsv --threads 10 --cache tmp_cache  --cols sample=IMS_ID
+sonar import --fasta valid.fasta --tsv day.tsv --threads 10 --cache tmp_cache  --cols sample=IMS_ID
 ```
-As you can see, we defined `--cols sample=IMS_ID`, in which `IMS_ID` is the column ID that linked the sample name between the fasta file and meta-info file, and `sample` is the reserved word used to link data between tables in the database.
+As you can see, we defined `--cols sample=IMS_ID`, in which `IMS_ID` is the ID that linked the sample name between the fasta file and meta-info file, and `sample` is the reserved word used to link data between tables in the database.
 
-> TIP 🕯️: user might don't need to create an `ID` property because we use the `sample` keyword as the ID to link data in our database schema and also used in the query command, which you will see in the next section.
+> TIP 🕯️: You might don't need to create an `ID` property because we use the `sample` keyword as the unique key to link data in our database schema and also used in the query command, which you will see in the next section.
 
 > TIP 🕯️: use `--threads` to increase the performance.
 
-To update meta information when we add a new property, we can use the same `import` command, but this time, in the `--tsv` tag, we provide a new meta or old file, for example:
+> TIP 🕯️: use `--cache` to choose a folder for the cache files, so next time we don't need to do preprocessing step.
+
+To update meta information when we add a new property, we can use the same `import` command, but this time, in the `--tsv` tag, we provide a new meta or updated file, for example:
 ```sh
-sonar import --db test.db --tsv meta.passed.tsv --threads 200 --cache tmp_cache --cols sample=IMS_ID
+sonar import --tsv meta.passed.tsv --threads 200 --cache tmp_cache --cols sample=IMS_ID
 
 ```
 > NOTE 🤨: please make sure the `--cols sample=IMS_ID` is correctly referenced. If you have a different column name, please change it according to the meta-info file (for example, `--cols sample=IMS_NEW_ID`)
 
-### 2.4 Query genome sequences based on profiles (match)
+### 2.5 Query genome sequences based on profiles (match)
 
-Genomic profiles can be defined to align genomes. For this purpose, the variants related to the complete genome of the SARS-CoV-2 isolate Wuhan-Hu-1 (NC_045512.2) must be expressed as follows:
+Genomic profiles can be defined to align genomes. For this purpose, the variants related to the complete genome of the Monkeypox virus, NCBI Reference Sequence (NC_063383.1) must be expressed as follows:
 
 | type       | nucleotide level                                                  | amino acid level              |
 |-----------|-------------------------------------------------------------------|-------------------------------|
-| SNP       | ref_nuc _followed by_ ref_pos _followed by_ alt_nuc (e.g. A3451T) | protein_symbol:ref_aa _followed by_ ref_pos _followed by_ alt_aa (e.g. S:N501Y) |
-| deletion  | del:first_NT_deleted-last_NT_deleted (e.g. del:11288-11296)                        | protein_symbol:del:first_AA_deleted-last_AA_deleted (e.g. ORF1ab:del:3001-3004) |
-| insertion | ref_nuc _followed by_ ref_pos _followed by_ alt_nucs (e.g. A3451TGAT) | protein_symbol:ref_aa _followed by_ ref_pos _followed by_ alt_aas (e.g. N:A34AK)  |
+| SNP       | ref_nuc _followed by_ ref_pos _followed by_ alt_nuc (e.g. T28175C) | protein_symbol:ref_aa _followed by_ ref_pos _followed by_ alt_aa (e.g. OPG098:E162K) |
+| deletion  | del:first_NT_deleted-last_NT_deleted (e.g. del:133177-133186)                        | protein_symbol:del:first_AA_deleted-last_AA_deleted (e.g. OPG197:del:34-35) |
+| insertion | ref_nuc _followed by_ ref_pos _followed by_ alt_nucs (e.g. T133102TTT) | protein_symbol:ref_aa _followed by_ ref_pos _followed by_ alt_aas (e.g. OPG197:A34AK)  |
 
-The positions refer to the reference (first nucleotide in the genome is position 1). Using the option `--profile`, multiple variant definitions can be combined into a nucleotide, amino acid or mixed profile, which means that matching genomes must have all those variations in common. In contrast, alternative variations can be defined by multiple `--profile` options. As an example, `--profile S:N501Y S:E484K` matches genomes sharing the _Nelly_ **AND** _Erik_ variation while `--profile S:N501Y --profile S:E484K` matches to genomes that share either the _Nelly_ **OR** _Erik_ variation **OR** both. Accordingly, using the option **^** profiles can be defined that have not to be present in the matched genomes.
+The positions refer to the reference (first nucleotide in the genome is position 1). Using the option `--profile`, multiple variant definitions can be combined into a nucleotide, amino acid or mixed profile, which means that matching genomes must have all those variations in common. In contrast, alternative variations can be defined by multiple `--profile` options. As an example, `--profile OPG044:L29P MPXV-UK_P2-006:I64K` matches genomes having the `L29P` **AND** `I64K` variation from both `NC_063383.1` and `MT903344.1` reference.
 
+ While `--profile OPG044:L29P --profile OPG105:Q284P` (seperate --profile) matches to genomes that share either the `OPG044:L29P` **OR** `OPG105:Q284P` variation **OR** both. Accordingly, using the option **^** profiles can be defined that have not to be present in the matched genomes.
 
 There are additional options to adjust the matching.
 
@@ -195,49 +217,55 @@ There are additional options to adjust the matching.
 
 > TIP 🕯️: use `sonar match -h ` to see all available arguments.
 
-Example;
+More example in match commnad;
+> NOTE 🤨: The match command will default get all mutation profiles from the database regardless of reference.
 ```sh
-sonar match --profile S:E484K --LINEAGE B.1.1.7 --db test.db
+# get all mutations
+sonar match
 
-# matching B.1.1.7 genomes in DB 'test.db' that share an additional "Erik" mutation
-sonar match --profile S:E484K --LINEAGE B.1.1.7 --db test.db
+# get all mutations which the sequence data were aligned with reference genome NC_063383.1
+sonar match -r NC_063383.1
 
-# --count to count the result
-sonar match --profile S:E484K --LINEAGE B.1.1.7 --count --db test.db
+# --count to count the result of reference NC_063383.1
+sonar match -r NC_063383.1 --count
+```
+> NOTE 🤨: Currently, if we run `sonar match --count`, it will count the result by sample name. This behavior will change soon.
 
-# matching genomes in DB 'test.db' sharing the "Nelly" mutation
-# and that were sampled on first of January 2020
-sonar match --profile S:N501Y  --DATE 2020-01-01 --db test.db
+```
+# Combine with meta info.
+# Samples are collected on first of January 2022
+sonar match -r NC_063383.1 --COLLECTION_DATE 2022-01-01
 
 # matching genomes with specific IDs
-sonar match --sample ID-001 ID-001 ID-002 --db test.db
+sonar match --sample ID-001 ID-001 ID-002
 ```
 
 We use `^` as a **"NOT"** operator. We put it before any conditional statement to negate, exclude or filter the result.
 ```sh
-# matching genomes in DB 'mydb' sharing the "Nelly" and the "Erik" mutation but not
-# belonging to the B.1.1.7 lineage
-sonar match --profile S:N501Y S:E484K --LINEAGE ^B.1.1.7 --db test.db
-
+# get sequences aligned with NC_063383.1 and was not collected on 2022-01-01.
+sonar match -r NC_063383.1 --COLLECTION_DATE ^2022-01-01
 ```
 
-More example; `--profile` match
+More example in `--profile` match
 ```sh
-# AA profile OR  NT profile case
-sonar match --profile S:del:K418 --profile T418A  --db test.db
+# combine search: AA profile OR NT profile case
+sonar match --profile OPG044:L29P --profile T28175C
 # AA profile AND NT profile case
-sonar match --profile ORF8:del:119-120 del:3677-3677  --db test.db
-# exact Match X or N , we use small x for AA and small n for NT
-sonar match --profile S:K418x --db test.db
-# this will match S:K418X
+sonar match --profile OPG197:del:34-35 del:133188-133197
 
-sonar match --profile A2145n --db test.db
-# this will match A2145N
+# exact match of X or N , we use small x for AA and small n for NT
+# this will match MPXV-UK_P2-067:T607x
+sonar match --profile MPXV-UK_P2-067:T607x
+
+# this will match A17328N
+sonar match --profile A173289n
 
 # speacial case, we can combine exact match and any match in alternate postion.
-sonar match  --profile A2145nN --db test.db
+sonar match  --profile A2145nN
 # this will look in ('NG', 'NB', 'NT', 'NM', 'NS', 'NV', 'NA', 'NH',
 # 'ND', 'NY', 'NR', 'NW', 'NK', 'NN', 'NC')
+
+sonar match  --profile A2145C --COLLECTION_DATE 2022-05-31
 
 ```
 
@@ -245,22 +273,22 @@ More example; property match
 ```sh
 # query with integer type
 # by default we use = operator
-sonar match  --AGE 25 --db test.db
+sonar match  --AGE 25
 # however, if we want to query with comparison operators (e.g., >, !=, <, >=, <=)
 # , just add " " (double quote) around values.
-sonar match  --AGE ">25" --db test.db
-sonar match  --AGE ">=25" "<=30" --db test.db # AND Combination: >=25 AND <=30
-sonar match  --AGE "!=60" --db test.db
+sonar match  --AGE ">25"
+sonar match  --AGE ">=25" "<=30"  # AND Combination: >=25 AND <=30
+sonar match  --AGE "!=60"
 
 # Range query matches
-sonar match  --DEMIS_ID_PC  10641:10658  --db test.db
+sonar match  --DEMIS_ID_PC  10641:10658
 # 10641, 10642, 10643, .... 10658
 
 # Date
-# Sample were sampled in 2020
-sonar match  --DATE 2020-01-01:2020-12-31 --db test.db
+# Sample were collected in 2020
+sonar match  --COLLECTION_DATE 2020-01-01:2020-12-31
 ```
-> TIP 🕯️: Don't forget `sonar list-prop --db test.db` to see more details
+> TIP 🕯️: Don't forget `sonar list-prop ` to list all properties
 
 **Export to CSV/TSV/VCF file**
 
@@ -268,18 +296,17 @@ covSonar can return results in different formats: `--format ["csv", "tsv", "vcf"
 
 ```sh
 # example command
-sonar match --profile S:N501Y S:E484K --LINEAGE ^B.1.1.7 --db test.db --format csv -o out.csv
+sonar match  --format csv -o out.csv
 
 # in vcf format
-sonar match -i S:N501Y S:E484K --lineage Q.1 --db test.db --format vcf -o out.vcf
+sonar match --profile A2145C --COLLECTION_DATE 2022-05-31 --format vcf -o out.vcf
 
 # In case we have a list of ID and it is stored in a file, so we can use --sample-file
 # tag to load and query according to the listed ID; example of --sample-file
-sonar match --sample-file accessions.txt --db test.db --format vcf -o out.vcf
+sonar match --sample-file accessions.txt --format vcf -o out.vcf
 ```
 
 > NOTE 📌: accessions.txt has to contain one ID per line.
-
 
 By default, covSonar returns every property to the output file if a user needs to export only some particular column. We can use `--out-column` tag to include only a specific property/column.
 
@@ -287,135 +314,38 @@ for example,
 
 ```sh
 # only NUC_PROFILE,AA_PROFILE and LINEAGE will save into tsv file
-sonar match --db test.db  --DATE_DRAW 2021-03-01  -o test.tsv --out-column NUC_PROFILE,AA_PROFILE,LINEAGE
+sonar match  --DATE_DRAW 2021-03-01  -o test.tsv --out-column NUC_PROFILE,AA_PROFILE,LINEAGE
 # column name separated by comma
 ```
 
-<u>Parent-Child relationship</u>
-
-> ⚠️ WARNING: **This function currently works on SARS-CoV-2 only ❗**
-
-First, we have to run `update-lineage-info` command to download the latest version of lineages from https://github.com/cov-lineages/pango-designation/ and install it in the database
-
-```sh
-# example command
-sonar update-lineage-info
-```
-
-We want to search all sublineages with a given lineage, covSonar offers `--with-sublineage PROP_COLUMN` (PROP_COLUMN  means the property name that we added to our database).
-
-In this example; we use `LINEAGE` property to store lineage information.
-```sh
-sonar match --profile S:E484K --LINEAGE B.1.1.7 --with-sublineage LINEAGE --count --db test.db --debug
-```
-This query will return results including 'B.1.1.7', 'Q.4', 'Q.5', 'Q.3', 'Q.6', 'Q.1', 'Q.7', 'Q.2', 'Q.8' lineages.
-
-<u>Wildcard search</u>
-
-covSonar also supports wildcard query (symbol `%`) to handle more complexity of the query. The operator is used in a **lineage query** to search for a specified pattern in lineage. It can be used in combinations of including and excluding command, for example;
-
-```sh
-# edit command at --lineage tag
-sonar match -i S:N501Y S:E484K --LINEAGE ^B.1.1% AY.4% --db test.db --format csv -o out.csv
-```
-
-This query will include all lineages that start with 'AY.4'.
-```
-['AY.4', 'AY.4.1', 'AY.4.2', .... , 'AY.46.5', 'AY.46.6', 'AY.47']
-```
-
-and exclude all lineages that start with 'B.1.1'.
-```
-['B.1.1', 'B.1.1.1', 'B.1.1.10', 'B.1.1.121', ... , 'B.1.177.9', 'B.1.179', 'B.1.187']
-```
-Here are some examples showing different queries with `%`
-
-| query              | description                                       |
-|--------------------|---------------------------------------------------|
-| AY%                | Finds any lineage that starts with "AY"           |
-| %1.1.%             | Finds any lineage that have "1.1." in any position|
-| %.1                | Finds any lineage that ends with ".1"             |
-
-> NOTE 📌: We can also use wildcard with sublineage search. The following example shows when want to exclude all lineage B.1.617.X (X can be 1,2,3 ...) and  we also enable sublineage search, so this result in all lineage and sublineages from B.1.617.X are also filter out.
-    ```
-    sonar match --LINEAGE ^B.1.617% --with-sublineage LINEAGE --db test.db --count --debug
-    ```
-    result in
-    ```
-    NOT IN ('B.1.617.2', 'AY.94', 'AY.43.4', 'AY.39.1', 'AY.122.2', 'AY.122.6', 'AY.9.2.2', 'AY.37', 'AY.112.2', 'AY.40', 'AY.26', 'AY.5.6', 'AY.84', 'AY.28', 'AY.25.2', 'AY.91.1', 'B.1.617.3', 'AY.33', 'AY.95', 'AY.125', 'B.1.617.1', ..... etc.)
-    ```
-
-### 2.5 Show infos about the used sonar system and database (info)
+### 2.6 Show infos about the used sonar system and database (info)
 
 Detailed infos about the used sonar system (e.g. version, reference,  number of imported genomes, unique sequences, available metadata).
 
 ```sh
-# Show infos about the used sonar system and database 'test.db'
-sonar info --db test.db
+sonar info
 ```
 
-### 2.6 Restore genome sequences from the database (restore)
+### 2.7 Restore genome sequences from the database (restore)
 Genome sequences can be restored from the database based on their accessions.
 The restored sequences are combined with their original FASTA header and  shown on the screen. The screen output can be redirected to a file easily by using `>`.
 
 ```sh
 # Restore genome sequences linked to accessions 'mygenome1' and 'mygenome2' from the
 # database 'test.db' and write these to a fasta file named 'restored.fasta'
-sonar restore --sample mygenome1 mygenome2 --db test.db > restored.fasta
+sonar restore --sample mygenome1 mygenome2 > restored.fasta
 # as before, but consider all accessions from 'accessions.txt' (the file has to
 # contain one accession per line)
-sonar restore --sample-file accessions.txt --db test.db > restored.fasta
+sonar restore --sample-file accessions.txt > restored.fasta
 ```
 
-### 2.7 Database management (db-upgrade, optimize)
-Sometimes you might need the `optimize` command to clean the [problems](https://www.sqlite.org/lang_vacuum.html) from database operation (e.g., unused data block or storage overhead ).
-```sh
-sonar optimize  --db test.db
-```
-
-When the newest version of covSonar use an old database version, covSonar will return  the following error;
-```bash
-Compatibility error: the given database is not compatible with this version of sonar (Current database version: XXX; Supported database version: XXX)
-Please run 'sonar  db-upgrade' to upgrade database
-```
-
-We provide our database upgrade assistant to solve the problem.
-```bash
-# RUN
-sonar db-upgrade --db test.db
-
-# Output
-Warning: Backup db file before upgrading, Press Enter to continue...
-
-## after pressing the Enter key
-Current version: 3  Upgrade to: 4
-Perform the Upgrade: file: test.db
-Database now version: 4
-Success: Database upgrade was successfully completed
-
-```
-⚠️ WARNING: Backup the db file before upgrade.
-
-### 2.7 Delete sample (delete)
+### 2.8 Delete sample (delete)
 
 ```sh
-sonar delete --db test.db --sample ID_1 ID_2 ID_3
+sonar delete --sample ID_1 ID_2 ID_3
 ```
 
-## How to contribute 🏗️
 
-covSonar has been very carefully programmed and tested, but is still in an early stage of development. You can contribute to this project by
-* reporting problems 🐛
-* writing feature requests to the [issue section](https://github.com/rki-mf1/covsonar/issues) 📝
-* start hacking -> [read contribution guide]( https://github.com/rki-mf1/covsonar/blob/dev/cov2_mpire/CONTRIBUTING.md)👨‍💻
-
-Please let us know that you plan to contribute before do any coding.
-
-Your feedback is very welcome 👨‍🔧!
-
-With love,
-
-covSonar Team
 
 ---------------------------------
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # author: Stephan Fuchs (Robert Koch Institute, MF1, fuchss@rki.de)
-# Kunaphas (RKI,HPI, kunaphas.kon@gmail.com)
+# , Kunaphas (RKI-HPI, kunaphas.kon@gmail.com)
 
 # DEPENDENCIES
 import collections
@@ -71,30 +71,32 @@ class sonarBasics(object):
                         "date when sample data has been modified lastly",
                     )
                     dbm.add_property(
-                        "nuc_profile",
+                        "SEQ_TECH",
                         "text",
                         "text",
-                        "stores the nucleotide level profiles",
+                        "stores the sequencing technologies.",
                     )
                     dbm.add_property(
-                        "aa_profile", "text", "text", "stores the aa level profiles"
+                        "LENGTH", "text", "text", "stores the genome lenght"
                     )
                     dbm.add_property(
-                        "nuc_n_profile",
+                        "GEO_LOCATION",
                         "text",
                         "text",
-                        "stores the nucleotide(with N) level profiles",
+                        "stores the GEO location",
                     )
                     dbm.add_property(
-                        "aa_x_profile",
-                        "text",
-                        "text",
-                        "stores the aa(with X) level profiles",
+                        "COLLECTION_DATE",
+                        "date",
+                        "date",
+                        "stores the sample collection date",
                     )
                     # adding reference
                     if not reference_gb:
                         reference_gb = os.path.join(
-                            os.path.dirname(os.path.abspath(__file__)), "data", "ref.gb"
+                            os.path.dirname(os.path.abspath(__file__)),
+                            "data",
+                            "NC_063383.1.gb",
                         )
                     # adding reference
                     sonarBasics().add_ref_by_genebank_file(
@@ -514,6 +516,7 @@ class sonarBasics(object):
         debug="False",
         showNX=False,
     ):
+        # print(propdict)
         with sonarDBManager(db, debug=debug) as dbm:
             if format == "vcf" and reference is None:
                 reference = dbm.get_default_reference_accession()

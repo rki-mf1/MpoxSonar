@@ -16,7 +16,7 @@ except PackageNotFoundError:  # pragma: no cover
 
 
 logging.basicConfig(
-    format="MPXsonar:%(asctime)s %(levelname)-4s: %(message)s",
+    format="MPoxSonar:%(asctime)s %(levelname)-4s: %(message)s",
     level=LOG_LEVEL,
     datefmt="%Y-%m-%d %H:%M:%S",
 )

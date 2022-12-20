@@ -32,6 +32,11 @@ class sonarBasicsChild(sonarBasics):
         debug="False",
         showNX=False,
     ):
+        """
+        db = db connection
+        profile
+
+        """
         output = None
         with sonarDBManager(db, debug=debug) as dbm:
             if format == "vcf" and reference is None:
