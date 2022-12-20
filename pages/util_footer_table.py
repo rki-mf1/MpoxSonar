@@ -28,7 +28,7 @@ row1 = html.Tr(
                         [
                             html.A(
                                 "Imprint & Privacy Policy",
-                                href="Home",
+                                href="Imprint",
                                 style={"color": "black"},
                             )
                         ],
