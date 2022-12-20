@@ -8,14 +8,17 @@ layout = (
     html.Div(
         children=[
             html.H1(children="Contact us"),
-            html.Div(["""
+            html.Div(
+                [
+                    """
                 Thank you for using our tool! We would love to get your feedback and improve over time. Please don't hesitate to contact us per E-mail using the following address: """,
-                      dcc.Link(
-                          html.A("FuchsS@rki.de"),
-                          href=("mailto:FuchsS@rki.de"),
-                          target="_blank",
-                      ),
-                      ]),
+                    dcc.Link(
+                        html.A("FuchsS@rki.de"),
+                        href=("mailto:FuchsS@rki.de"),
+                        target="_blank",
+                    ),
+                ]
+            ),
             html.Br(),
             html.Div(
                 children="""

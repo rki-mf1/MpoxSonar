@@ -11,10 +11,10 @@ layout = (
             html.Br(),
             html.H4(
                 children="Information according to § 5 German Telemedia Act:",
-                style={"margin-bottom": "10px"},
+                style={"marginBottom": "10px"},
             ),
-            html.Div("Stephan Fuchs", style={"margin-bottom": "10px"}),
-            html.Div("Seestraße 10", style={"margin-bottom": "10px"}),
+            html.Div("Stephan Fuchs", style={"marginBottom": "10px"}),
+            html.Div("Seestraße 10", style={"marginBottom": "10px"}),
             html.Div("13353 Berlin"),
             html.Br(),
             html.H4("Contact: "),
@@ -38,12 +38,12 @@ layout = (
                 "As a matter of principle, we collect and use personal data of our users only to the extent necessary for providing a functional website and service and as the legal requirements allow."
             ),
             html.H4("3. Contact Details"),
-            html.Div("Hasso-Plattner-Institut", style={"margin-bottom": "10px"}),
-            html.Div("FG Bernhard Renard", style={"margin-bottom": "10px"}),
-            html.Div("Prof.-Dr.-Helmert-Straße 2 – 3", style={"margin-bottom": "10px"}),
-            html.Div("14482 Potsdam", style={"margin-bottom": "10px"}),
+            html.Div("Hasso-Plattner-Institut", style={"marginBottom": "10px"}),
+            html.Div("FG Bernhard Renard", style={"marginBottom": "10px"}),
+            html.Div("Prof.-Dr.-Helmert-Straße 2 – 3", style={"marginBottom": "10px"}),
+            html.Div("14482 Potsdam", style={"marginBottom": "10px"}),
             html.H4("4. Data Protection officer"),
-            html.Div("Prof. Dr. Bernhard Renard", style={"margin-bottom": "10px"}),
+            html.Div("Prof. Dr. Bernhard Renard", style={"marginBottom": "10px"}),
             html.H4("5. Purpose"),
             html.P(
                 "The purpose of the MPoxRadar service is to provide insights into mutation frequency in public MonkeyPox (mpox) genomes as well as temporal and spatial distributions of genomic mpox variants."

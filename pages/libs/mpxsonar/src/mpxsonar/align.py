@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # author: Stephan Fuchs (Robert Koch Institute, MF1, fuchss@rki.de)
-# Kunaphas (RKI,HPI, kunaphas.kon@gmail.com)
+# , Kunaphas (RKI-HPI, kunaphas.kon@gmail.com)
 import logging
 import os
 import pickle
@@ -116,8 +116,8 @@ class sonarAligner(object):
         sourceid = str(data["sourceid"])
         self.log("data:" + str(data))
         alignment = self.align(data["seq_file"], data["ref_file"])
-        self.cal_seq_length(alignment[0][0:20], msg="qry")
-        self.cal_seq_length(alignment[1][0:20], msg="ref")
+        # self.cal_seq_length(alignment[0][0:20], msg="qry")
+        # self.cal_seq_length(alignment[1][0:20], msg="ref")
         nuc_vars = [x for x in self.extract_vars(*alignment, sourceid)]
         vars = "\n".join(["\t".join(x) for x in nuc_vars])
         if nuc_vars:

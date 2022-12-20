@@ -59,7 +59,7 @@ table = dbc.Table(
         "width": "100%",
         "margin-top": "10px",
         "margin-left": "auto",
-        "margin-right": "auto",
+        "marginRight": "auto",
     },
     className="relative",
 )
@@ -256,6 +256,6 @@ table_body_2 = [
 table_2 = dbc.Table(
     table_header_2 + table_body_2,
     bordered=True,
-    style={"width": "100%", "margin-top": "10px"},
+    style={"width": "100%", "marginTop": "10px"},
     className="relative",
 )

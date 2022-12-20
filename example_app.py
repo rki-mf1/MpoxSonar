@@ -31,7 +31,7 @@ df = pd.DataFrame(
 )
 # preload
 dat_checkbox_list_of_dict = get_all_references()
-
+server = app.server
 
 tool_checkbox_cards = html.Div(
     [
@@ -148,7 +148,7 @@ custom_cmd_cards = html.Div(
                                                 ),
                                             ],
                                             header="Translate into Sonar command",
-                                            style={"margin-top": "15px"},
+                                            style={"marginTop": "15px"},
                                         ),
                                     ],
                                     width=3,
@@ -283,7 +283,7 @@ custom_cmd_cards = html.Div(
                                                     title="FMI",
                                                 ),
                                             ],
-                                            style={"margin-top": "15px"},
+                                            style={"marginTop": "15px"},
                                         )
                                     ],
                                     width=8,

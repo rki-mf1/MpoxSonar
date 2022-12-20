@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # author: Stephan Fuchs (Robert Koch Institute, MF1, fuchss@rki.de)
-# Kunaphas (RKI-MF1, HPI, kunaphas.kon@gmail.com)
+# , Kunaphas (RKI-MF1, HPI, kunaphas.kon@gmail.com)
 
 import argparse
 import os
@@ -13,7 +13,6 @@ from tabulate import tabulate
 from . import logging
 from .basics import sonarBasics
 from .dbm import sonarDBManager
-from .linmgr import sonarLinmgr
 
 # from .cache import sonarCache  # noqa: F401
 
@@ -31,7 +30,7 @@ def parse_args(args):
 
     # preparations
     user_namespace = arg_namespace()
-    parser = argparse.ArgumentParser(prog="sonar", description="mpxsonar " + VERSION)
+    parser = argparse.ArgumentParser(prog="sonar", description="MPoxSonar " + VERSION)
     subparsers = parser.add_subparsers(
         help="detect, store, and screen for mutations in genomic sequences"
     )
@@ -348,28 +347,28 @@ def parse_args(args):
     )
 
     # dev parser
-    subparsers.add_parser("dev", parents=[general_parser])
+    # subparsers.add_parser("dev", parents=[general_parser])
 
     # db-upgrade parser
-    subparsers.add_parser(
-        "db-upgrade",
-        parents=[general_parser],
-        help="upgrade a database to the latest version",
-    )
+    # subparsers.add_parser(
+    #    "db-upgrade",
+    #    parents=[general_parser],
+    #    help="upgrade a database to the latest version",
+    # )
 
     # update-lineage-info parser
-    subparsers.add_parser(
-        "update-lineage-info",
-        parents=[general_parser],
-        help="download latest lineage information",
-    )
+    # subparsers.add_parser(
+    #    "update-lineage-info",
+    #    parents=[general_parser],
+    #    help="download latest lineage information",
+    # )
 
     # version parser
     parser.add_argument(
         "-v",
         "--version",
         action="version",
-        version="MPXSonar " + VERSION,
+        version="MPoxSonar " + VERSION,
         help="Show program's version number and exit.",
     )
 
@@ -417,7 +416,7 @@ def main(args):  # noqa: C901
     #    logging.info("CHECK DB: Connected successfully!")
 
     if not hasattr(args, "db"):  # or args.db:
-        logging.warning("No --db is given, MPXSonar use variables from .env file.")
+        logging.warning("No --db is given, MPoxSonar use variables from .env file.")
     #    if args.tool != "setup" and args.db is not None and not os.path.isfile(args.db):
     #        sys.exit("input error: database does not exist.")
 
@@ -582,7 +581,7 @@ def main(args):  # noqa: C901
             f"The {args.reference} will be removed, and all the samples with this reference will also be removed."
         )
         logging.warning(
-            "If you need to reimport data again, you have to create new cache directory, add a reference and then perform import."
+            "If you need to import data again, you have to create new cache directory, add a reference and then perform import."
         )
         decision = ""
         while decision not in ("YES", "no"):
@@ -619,22 +618,6 @@ def main(args):  # noqa: C901
             sonarBasics.restore(
                 args.db, *samples, aligned=args.aligned, debug=args.debug
             )
-
-    # update-lineage-info
-    elif args.tool == "update-lineage-info":
-        logging.info("Start to update parent-child relationship...")
-        # fname = os.path.join(
-        #    os.path.join(os.path.dirname(os.path.realpath(__file__))),
-        #    "data/lineage.all.tsv",
-        # )
-        # obj = sonarLinmgr()
-        # lin_df = obj.update_lineage_data(fname)
-        with sonarLinmgr() as obj:
-            lin_df = obj.update_lineage_data()
-
-        with sonarDBManager(args.db, readonly=False, debug=args.debug) as dbm:
-            dbm.add_update_lineage(lin_df)
-            logging.info("Update has been successfully")
 
     # info
     elif args.tool == "info":
@@ -739,7 +722,7 @@ def main(args):  # noqa: C901
 
 
 def run():
-    print(sys.argv[1:])
+    # print(sys.argv[1:])
     parsed_args = parse_args(sys.argv[1:])
     main(parsed_args)
 

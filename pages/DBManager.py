@@ -138,3 +138,9 @@ class DBManager(object):
             else:
                 self.__references = {}
         return self.__references
+
+    def get_all_SeqTech(self):
+        sql = "SELECT DISTINCT(value_text) FROM propertyView WHERE `property.name` = 'SEQ_TECH' ORDER BY value_text;"
+        self.cursor.execute(sql)
+        rows = self.cursor.fetchall()
+        return rows

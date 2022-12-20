@@ -30,7 +30,7 @@ class sonarBasicsChild(sonarBasics):
         outfile=None,
         output_column="all",
         format="csv",
-        debug="False",
+        debug=False,
         showNX=False,
     ):
         output = None
@@ -190,7 +190,24 @@ def get_all_references():
         list_dict = dbm.references
         for _dict in list_dict:
             # print(_dict)
-            _list.append({"value": _dict["accession"], "label": _dict["accession"]})
+            if _dict["accession"] in ["NC_063383.1", "MT903344.1", "ON563414.3"]:
+                _list.append({"value": _dict["accession"], "label": _dict["accession"]})
+    # logging_radar.info(_dict)
+    return _list
+
+
+def get_all_seqtech():
+    _list = []
+    with DBManager() as dbm:
+        list_dict = dbm.get_all_SeqTech()
+        for _dict in list_dict:
+            # print(_dict)
+            if _dict["value_text"] == "":
+                _list.append({"value": _dict["value_text"], "label": "n/a"})
+            else:
+                _list.append(
+                    {"value": _dict["value_text"], "label": _dict["value_text"]}
+                )
     # logging_radar.info(_dict)
     return _list
 
@@ -199,9 +216,28 @@ def get_value_by_reference(checked_ref):
     output_df = pd.DataFrame()
     for ref in checked_ref:
         print("Query " + ref)
-        _df = sonarBasicsChild.match(DB_URL, reference=ref, debug="False")
+        _df = sonarBasicsChild.match(DB_URL, reference=ref)
         if type(_df) == str:
             continue
         output_df = pd.concat([output_df, _df], ignore_index=True)
+    return output_df
 
+
+def get_value_by_filter(checked_ref, seqtech_checklist):
+    output_df = pd.DataFrame()
+
+    if len(checked_ref) == 0:  # all hardcode for now TODO:
+        checked_ref = ["NC_063383.1", "MT903344.1", "ON563414.3"]
+
+    propdict = {}
+    if seqtech_checklist:
+        propdict["SEQ_TECH"] = seqtech_checklist
+    print("SEQ_TECH:" + str(propdict))
+
+    for ref in checked_ref:
+        print("Query " + ref)
+        _df = sonarBasicsChild.match(DB_URL, reference=ref, propdict=propdict)
+        if type(_df) == str:
+            continue
+        output_df = pd.concat([output_df, _df], ignore_index=True)
     return output_df
