@@ -28,7 +28,7 @@ layout = (
             html.H4("1. Introductory Remarks"),
             html.P(
                 [
-                    "This page is used to inform website visitors regarding our policies with the collection, use, and disclosure of personal data if anyone decided to use our Service, the MPXRadar website (",
+                    "This page is used to inform website visitors regarding our policies with the collection, use, and disclosure of personal data if anyone decided to use our Service, the MPoxRadar website (",
                     dcc.Link(href="https://mpxradar.ddns.net/", target="_blank"),
                     "). Personal data is information that makes it possible to identify a person. In addition to direct personal information, such as name, date of birth or telephone number or IP address, this also includes data on personal characteristics, beliefs or relationships that allow a conclusion to be drawn about a specific person. The operators of these pages take the protection of your personal data very seriously. We treat your personal data confidentially and according to the legal data protection regulations as well as this Privacy Policy. If you choose to use our Service, then you agree to the collection and use of information in relation with this policy. The personal information that we collect is used for providing and improving the Service. We will not use or share your information with anyone except as described in this Privacy Policy. We would like to point out that the data transmission on the Internet (e.g. communication by e-mail) can have security gaps. A complete protection of data against access by third parties is not possible.",
                 ]

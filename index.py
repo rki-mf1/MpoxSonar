@@ -38,7 +38,7 @@ app.layout = html.Div(
             style={"float": "right", "height": "10%", "width": "10%"},
             className="responsive",
         ),
-        html.Div("An interactive dashboard for genomic surveillance of the Monkey Pox Virus."),
+        html.Div("An interactive dashboard for genomic surveillance of the mpox."),
         html.Br(),
         html.Div(
             [
