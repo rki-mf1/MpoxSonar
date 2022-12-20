@@ -1,8 +1,12 @@
 [tool.poetry]
-name = "mpxradar-frontend"
-version = "0.2.1"
-description = "MonkeyPoxRadar"
-authors = ["Kunaphas.Kong <kunaphas.kon@gmail.com>"]
+name = "MPoxSonar"
+version = "0.5.0"
+description = "A database-driven system for handling genomic sequences and screening genomic profiles."
+authors = ["Stephan Fuchs <FuchsS@rki.de>", "Kunaphas Kongkitimanon <KongkitimanonK@rki.de>", "Matthew Huska <HuskaM@rki.de>"]
+license = "GPL3"
+readme = "README.md"
+homepage = "https://github.com/rki-mf1/covsonar"
+repository = "https://github.com/rki-mf1/covsonar"
 
 [tool.poetry.dependencies]
 python = "^3.9"
@@ -17,10 +21,7 @@ requests = "^2.28.0"
 python-dotenv = "^0.21.0"
 mariadb = "^1.1.4"
 psutil = "^5.9.3"
-dash-bootstrap-components = "^1.2.1"
-dash = "^2.7.0"
-gunicorn = "^20.1.0"
-dash-mantine-components = "^0.11.0"
+dateparser = "^1.1.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"
@@ -35,7 +36,23 @@ flake8-import-order = "^0.18.1"
 safety = "^2.0.0"
 zimports = "^0.6.0"
 pytest-sugar = "^0.9.5"
+dash-bootstrap-components = "^1.2.1"
 
+[tool.poetry.scripts]
+sonar = "mpxsonar.sonar:run"
+
+[tool.coverage.paths]
+source = ["src", "*/site-packages"]
+
+[tool.coverage.run]
+branch = true
+source = ["mpxsonar"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.black]
+target-version = ['py39']
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
