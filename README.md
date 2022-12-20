@@ -1,7 +1,11 @@
-# MPXRadar-frontend
-MonkeyPoxRadar frontend codebase.
+# MpoxRadar-frontend
+MpoxRadar is a worldwide interactive dashboard for genomic surveillance of mpox. 
 
-MPXSonar intregated under `pages/libs` (Git subtree)
+This application is a result of a collaboration between Hasso Plattner Institute and Robert-Koch Institute. 
+
+-------
+
+MpoxSonar intregated under `pages/libs` (Git subtree)
 
 # Installation
 1. Clone this project
