@@ -225,7 +225,7 @@ def get_value_by_reference(checked_ref):
 
 def get_value_by_filter(checked_ref, mut_checklist, seqtech_checklist):
     output_df = pd.DataFrame()
-    
+
     if len(checked_ref) == 0:  # all hardcode for now TODO:
         checked_ref = ["NC_063383.1", "MT903344.1", "ON563414.3"]
 
@@ -233,16 +233,18 @@ def get_value_by_filter(checked_ref, mut_checklist, seqtech_checklist):
     if seqtech_checklist:
         propdict["SEQ_TECH"] = seqtech_checklist
     print("SEQ_TECH:" + str(propdict))
-    
+
     mut_profiles = []
     if mut_checklist:
         mut_profiles.append(mut_checklist)
 
-    print(mut_profiles)
+    # print(mut_profiles)
 
     for ref in checked_ref:
         print("Query " + ref)
-        _df = sonarBasicsChild.match(DB_URL, profiles=mut_profiles, reference=ref, propdict=propdict)
+        _df = sonarBasicsChild.match(
+            DB_URL, profiles=mut_profiles, reference=ref, propdict=propdict
+        )
         if type(_df) == str:
             continue
         output_df = pd.concat([output_df, _df], ignore_index=True)
@@ -256,6 +258,8 @@ def get_high_mutation():
         for _dict in list_dict:
             # print(_dict)
 
-            _list.append({"value": _dict["variant.label"], "label": _dict["variant.label"]})
+            _list.append(
+                {"value": _dict["variant.label"], "label": _dict["variant.label"]}
+            )
     # logging_radar.info(_dict)
     return _list

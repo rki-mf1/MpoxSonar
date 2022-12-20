@@ -49,8 +49,8 @@ sql_query = (
     ";"
 )
 layout = html.Div(
-    [      
-        html.Div(id= "alertmsg"),
+    [
+        html.Div(id="alertmsg"),
         html.Div(
             [
                 dbc.Row(
@@ -120,7 +120,6 @@ layout = html.Div(
 )
 
 
-
 @callback(
     Output("alertmsg", "children"),
     Output("loading-output", "children"),
@@ -136,33 +135,43 @@ layout = html.Div(
     ],
 )
 def update_figure(
-    ref_checklist, mut_checklist, viz_checklist, seqtech_checklist, mpoxsonar_check,
-    rows, columns
+    ref_checklist,
+    mut_checklist,
+    viz_checklist,
+    seqtech_checklist,
+    mpoxsonar_check,
+    rows,
+    columns,
 ):
     alertmsg = ""
     all_or_none = ref_checklist + mut_checklist + viz_checklist + seqtech_checklist
-    output_df = pd.DataFrame(columns=['COUNTRY','RELEASE_DATE', 'lat','lon','CaseNumber'])
+    output_df = pd.DataFrame(
+        columns=["COUNTRY", "RELEASE_DATE", "lat", "lon", "CaseNumber"]
+    )
     if mpoxsonar_check:
-        print(rows)
+        # print(rows)
 
-        print(columns)
-        if  rows is not None:
-            output_df = pd.DataFrame(rows, columns=[c['name'] for c in columns])
+        # print(columns)
+        if rows is not None:
+            output_df = pd.DataFrame(rows, columns=[c["name"] for c in columns])
             output_df = calculate_coordinate(output_df)
 
         else:
-            alertmsg= dbc.Alert("Table result is empty, please submit a query", color="warning", dismissable=True)   
+            alertmsg = dbc.Alert(
+                "Table result is empty, please submit a query",
+                color="warning",
+                dismissable=True,
+            )
     else:
         if len(all_or_none) == 0:
             msg = "All"
         else:
             msg = all_or_none
-        print(msg)
+        # print(msg)
 
         output_df = get_value_by_filter(ref_checklist, mut_checklist, seqtech_checklist)
 
         output_df = calculate_coordinate(output_df)
-
 
     fig = px.scatter_mapbox(
         output_df,
@@ -188,16 +197,18 @@ def calculate_coordinate(ouput_df):
     # concate the coordinate
     result = pd.merge(ouput_df, coord_data, left_on="COUNTRY", right_on="name")
     result.drop(columns=["location_ID", "name"], inplace=True)
-    
-    result['number'] = [len(x.split(',')) for x in result['NUC_PROFILE']] # just count all mutation occur in each sample.
+
+    result["number"] = [
+        len(x.split(",")) for x in result["NUC_PROFILE"]
+    ]  # just count all mutation occur in each sample.
     # new_res = result.groupby(['COUNTRY', 'lon', 'lat', 'RELEASE_DATE'])['number'].sum().reset_index()
 
     # sort DAte
     result["RELEASE_DATE"] = pd.to_datetime(result["RELEASE_DATE"]).dt.date
     result.sort_values(by="RELEASE_DATE", inplace=True)
-    result["CaseNumber"] = result.groupby(["COUNTRY", "RELEASE_DATE"])["COUNTRY"].transform(
-        "count"
-    )
+    result["CaseNumber"] = result.groupby(["COUNTRY", "RELEASE_DATE"])[
+        "COUNTRY"
+    ].transform("count")
 
     # change the CaseNumber to MutationNumber
 
@@ -239,7 +250,7 @@ def update_output_div(input_value):
 )
 def update_output_sonar(n_clicks, commands):
     """
-        Callback handle mpxsonar commands
+    Callback handle mpxsonar commands
     """
     # calls backend
     _list = shlex.split(commands)
@@ -275,6 +286,7 @@ def update_output_sonar(n_clicks, commands):
         output = "error: unrecognized arguments/commands"
     return output, data, columns
 
+
 @callback(
     Output("4_checklist_input", "value"),
     [Input("seqtech_all-or-none", "value")],
@@ -285,6 +297,7 @@ def seqtech_select_all_none(all_selected, options):
     all_or_none = [option["value"] for option in options if all_selected]
     return all_or_none
 
+
 @callback(
     Output("2_checklist_input", "value"),
     [Input("mutation_all-or-none", "value")],
@@ -293,5 +306,4 @@ def seqtech_select_all_none(all_selected, options):
 def mutation_select_all_none(all_selected, options):
     all_or_none = []
     all_or_none = [option["value"] for option in options if all_selected]
-    return all_or_none 
-  
+    return all_or_none
