@@ -161,7 +161,6 @@ def generate_outputfiles(save_download_path, save_final_path):  # noqa: C901
         if x.endswith(".GB"):
             # Prints only text file present in My Folder
             list_of_GB.append(os.path.join(save_download_path, x))
-    # TODO: remove reference genome from the list.
 
     # fasta & meta
     fasta_out_handler = open(os.path.join(save_final_path, "seq.fasta"), "w")
@@ -182,6 +181,7 @@ def generate_outputfiles(save_download_path, save_final_path):  # noqa: C901
             logging.info("Load:" + _file)
             seq_GBrecords = list(SeqIO.parse(_file, "genbank"))
             for seq_record in seq_GBrecords:
+                # remove reference genome from the list.
                 if seq_record.id in REF_LIST:
                     continue
 
@@ -210,8 +210,10 @@ def generate_outputfiles(save_download_path, save_final_path):  # noqa: C901
                     _collection_date = seq_record.features[0].qualifiers[
                         "collection_date"
                     ][0]
-                    # 1.) need to fix date Nov-2017 -> 2017-11-01, 09-Nov-2017 -> 2017-11-09
-                    # 1995 -> 1995-01-01 set default value with first day of
+                    # Step
+                    # 1.) Fix date;
+                    # * Nov-2017 -> 2017-11-01, 09-Nov-2017 -> 2017-11-09
+                    # * 1995 -> 1995-01-01 set default value with first day of
                     # the month and first month of the year
                     # 2.) Year needs to be present in the format.
 
@@ -238,7 +240,7 @@ def generate_outputfiles(save_download_path, save_final_path):  # noqa: C901
 
                 if "date" in seq_record.annotations:
                     _NCBI_release_date = seq_record.annotations["date"]
-                    # need to fix date 18-NOV-2022 -> 2022-11-18
+                    # Fix date; 18-NOV-2022 -> 2022-11-18
                     d = dateparser.parse(
                         _NCBI_release_date,
                         settings={"PREFER_DAY_OF_MONTH": "first", "DATE_ORDER": "YMD"},
