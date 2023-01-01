@@ -12,7 +12,6 @@ import pprint
 import re
 import shutil
 import sys
-from tempfile import mkdtemp
 import traceback
 
 from mpire import WorkerPool
@@ -20,6 +19,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from .align import sonarAligner
+from .config import TMP_CACHE
 from .dbm import sonarDBManager
 from .utils import check_seq_compact
 from .utils import harmonize
@@ -98,11 +98,7 @@ class sonarCache:
         )
         self._molregex = re.compile(r"\[molecule=([^\[\]=]+)\]")
 
-        self.basedir = (
-            os.path.abspath(mkdtemp(prefix=".sonarCache_"))
-            if not outdir
-            else os.path.abspath(outdir)
-        )
+        self.basedir = TMP_CACHE if not outdir else os.path.abspath(outdir)
 
         if not os.path.exists(self.basedir):
             os.makedirs(self.basedir)
@@ -717,7 +713,7 @@ class sonarCache:
         # print(output_paranoid, qryfile, reffile, sample_name)
 
         if not os.path.exists(output_paranoid):
-            aligner = sonarAligner(outdir=self.basedir)
+            aligner = sonarAligner(cache_outdir=self.basedir)
 
             qry, ref = aligner.align(qryfile, reffile)
             with open(output_paranoid, "w+") as handle:
@@ -940,7 +936,7 @@ class sonarCache:
                 handle.write(">ref\n" + orig_seq)
             output_paranoid = f"{sample_name}.withref.{ref_name}.fail-paranoid.fna"
             if not os.path.exists(output_paranoid):
-                aligner = sonarAligner(outdir=self.basedir)
+                aligner = sonarAligner(cache_outdir=self.basedir)
 
                 qry, ref = aligner.align(qryfile, reffile)
                 with open(output_paranoid, "w+") as handle:
