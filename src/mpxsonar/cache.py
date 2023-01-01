@@ -12,7 +12,6 @@ import pprint
 import re
 import shutil
 import sys
-from tempfile import mkdtemp
 import traceback
 
 from mpire import WorkerPool
@@ -20,12 +19,12 @@ import pandas as pd
 from tqdm import tqdm
 
 from .align import sonarAligner
+from .config import TMP_CACHE
 from .dbm import sonarDBManager
 from .utils import check_seq_compact
 from .utils import harmonize
 from .utils import hash
 from .utils import open_file
-from .config import TMP_CACHE
 
 # from .basics import sonarBasics
 
