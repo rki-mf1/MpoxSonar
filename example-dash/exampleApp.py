@@ -105,7 +105,7 @@ custom_cmd_cards = html.Div(
                                                 ),
                                             ],
                                             header="Translate into Sonar command",
-                                            style={"margin-top": "15px"},
+                                            style={"marginTop": "15px"},
                                         ),
                                     ],
                                     width=3,
@@ -240,7 +240,7 @@ custom_cmd_cards = html.Div(
                                                     title="FMI",
                                                 ),
                                             ],
-                                            style={"margin-top": "15px"},
+                                            style={"marginTop": "15px"},
                                         )
                                     ],
                                     width=8,
