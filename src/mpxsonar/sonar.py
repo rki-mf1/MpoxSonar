@@ -316,7 +316,7 @@ def parse_args(args):
     # delete parser
     parser_delete = subparsers.add_parser(
         "delete",
-        parents=[ref_parser, sample_parser, general_parser],
+        parents=[sample_parser, general_parser],
         help="delete one or more samples from the database.",
     )
     parser_delete.add_argument(
@@ -333,7 +333,7 @@ def parse_args(args):
     )
     parser_restore.add_argument(
         "--aligned",
-        help="ise aligned form (deletions indicated by - and insertions by lower-case letters)",
+        help="use pairwise aligned form (deletions indicated by - and insertions by lower-case letters)",
         action="store_true",
     )
 
@@ -597,7 +597,7 @@ def main(args):  # noqa: C901
         samples = set([x.strip() for x in args.sample])
         for file in args.sample_file:
             check_file(file)
-            with sonarBasics.open_file(file, compressed="auto") as handle:
+            with open_file(file, compressed="auto") as handle:
                 for line in handle:
                     samples.add(line.strip())
         if len(samples) == 0:
@@ -617,7 +617,10 @@ def main(args):  # noqa: C901
             logging.info("Nothing to restore.")
         else:
             sonarBasics.restore(
-                args.db, *samples, aligned=args.aligned, debug=args.debug
+                args.db,
+                *samples,
+                aligned=args.aligned,
+                debug=args.debug,
             )
 
     # info

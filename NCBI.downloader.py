@@ -33,6 +33,7 @@ IGNORE_LIST = [
     "FV537352.1",
     "OX044338.1",
     "OX009124.1",
+    "NC_003310.1",  # from 1996
 ]
 
 Entrez.api_key = os.getenv("NCBI_API_KEY", "")

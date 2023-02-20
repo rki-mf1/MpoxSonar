@@ -698,6 +698,7 @@ class sonarCache:
                     print(traceback.format_exc())
                     print("\nDebugging Information:")
                     print(e)
+                    traceback.print_exc()
                     print("\n During insert:")
                     pp.pprint(sample_data)
                     sys.exit("Unknown import error")
@@ -762,6 +763,8 @@ class sonarCache:
             if vardata["variant.alt"] == " ":
                 for i in range(vardata["variant.start"], vardata["variant.end"]):
                     seq[i] = ""
+            elif vardata["variant.alt"] == ".":
+                seq[vardata["variant.start"]] = ""
             elif vardata["variant.start"] >= 0:
                 seq[vardata["variant.start"]] = vardata["variant.alt"]
             else:
@@ -931,14 +934,17 @@ class sonarCache:
             reffile = os.path.join(self.basedir, sample_name + ".error.original_sam.fa")
 
             with open(qryfile, "w+") as handle:
-                handle.write(">seq\n" + seq)
+                handle.write(seq)
             with open(reffile, "w+") as handle:
-                handle.write(">ref\n" + orig_seq)
+                handle.write(orig_seq)
+
             output_paranoid = f"{sample_name}.withref.{ref_name}.fail-paranoid.fna"
             if not os.path.exists(output_paranoid):
                 aligner = sonarAligner(cache_outdir=self.basedir)
 
-                qry, ref = aligner.align(qryfile, reffile)
+                ref, qry, cigar = aligner.align(
+                    aligner.read_seqcache(qryfile), aligner.read_seqcache(reffile)
+                )
                 with open(output_paranoid, "w+") as handle:
                     handle.write(
                         ">original_"
@@ -951,7 +957,9 @@ class sonarCache:
                         + qry
                         + "\n"
                     )
-            logging.warn(f"See {output_paranoid} for alignment comparison.")
+            logging.warn(
+                f"See {output_paranoid} for alignment comparison. CIGAR:{cigar}"
+            )
             # delete alignment, sourceid = reference id
             dbm.delete_alignment(
                 seqhash=sample_data["seqhash"], element_id=sample_data["sourceid"]

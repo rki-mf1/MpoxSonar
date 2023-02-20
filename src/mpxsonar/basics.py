@@ -515,6 +515,7 @@ class sonarBasics(object):
         format="csv",
         debug="False",
         showNX=False,
+        ignoreTerminalGaps=True,
     ):
         # print(profiles)
         with sonarDBManager(db, debug=debug) as dbm:
@@ -563,6 +564,8 @@ class sonarBasics(object):
     ):
         with sonarDBManager(db, readonly=True, debug=debug) as dbm:
             handle = sys.stdout if outfile is None else open(outfile, "w")
+            gap = "-" if aligned else ""
+            gapalts = {" ", "."}
             for sample in samples:
                 prefixes = collections.defaultdict(str)
                 molecules = {
@@ -581,7 +584,7 @@ class sonarBasics(object):
                             vardata["variant.alt"][0]
                             + vardata["variant.alt"][1:].lower()
                         )
-                    if vardata["variant.alt"] == " ":
+                    if vardata["variant.alt"] in gapalts:
                         for i in range(
                             vardata["variant.start"], vardata["variant.end"]
                         ):
@@ -653,11 +656,12 @@ class sonarBasics(object):
     @staticmethod
     def show_db_info(db):
         with sonarDBManager(db, readonly=True) as dbm:
-            print("MPXSonar Version:          ", sonarBasics.get_version())
+            print("MPXSonar Version: ", sonarBasics.get_version())
             # print("database path:             ", dbm.dbfile)
-            print("database version:          ", dbm.get_db_version())
-            print("database size:             ", dbm.get_db_size())
-            print("unique sequences:          ", dbm.count_sequences())
+            print("database version: ", dbm.get_db_version())
+            print("database size: ", dbm.get_db_size())
+            print("unique samples: ", dbm.count_samples())
+            print("unique sequences: ", dbm.count_sequences())
             # print("Sample properties          ", dbm.get_earliest_import())
             # print("latest genome import:      ", dbm.get_latest_import())
             # print("earliest sampling date:    ", dbm.get_earliest_date())

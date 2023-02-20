@@ -1854,8 +1854,8 @@ class sonarDBManager:
         else:
             profile_sqls = ""
         if self.debug:
-            logging.info(f"Reference sqls: {profile_sqls}")
-            logging.info(f"Reference vals: {profile_vals}")
+            logging.info(f"Profile sqls: {profile_sqls}")
+            logging.info(f"Profile vals: {profile_vals}")
         if profile_sqls == "":
             logging.info("Filtered Reference ID: none")
             return []
@@ -1879,6 +1879,7 @@ class sonarDBManager:
         properties=None,
         reference_accession=None,
         showNX=False,
+        ignoreTerminalGaps=False,
         output_column="all",
         format="csv",
     ):
@@ -1896,7 +1897,7 @@ class sonarDBManager:
         property_vals = []
         # IF sublineage search is enable
         # support: include and exclude
-        if "with_sublineage" in reserved_props:
+        if False and "with_sublineage" in reserved_props:
             _tmp_include_lin = []  # used to keep all lienages after search.
             lineage_col = reserved_props.get("with_sublineage")
             include_lin = properties.get(lineage_col)  # get list of given lineages
@@ -1957,7 +1958,7 @@ class sonarDBManager:
         property_sqls = " INTERSECT ".join(property_sqls)
         if self.debug:
             logging.info(f"Properties in Query: {property_sqls}")
-
+        # ------------------------
         # collecting sqls for genomic profile based filtering
         profile_sqls = []
         profile_vals = []
@@ -1983,17 +1984,31 @@ class sonarDBManager:
         if self.debug:
             logging.info(f"Profile sqls: {profile_sqls}")
             logging.info(f"Profile vals: {profile_vals}")
+        # ------------------------
+        # NOTE: Find the refID, if refID is not given,
+        # this will return all refIDs that match the given profiles
+        if len(profiles) > 0:
 
-        variant_id_list = self.get_ref_variant_ID(profiles)
-        if len(variant_id_list) > 0:
-            selected_variant_ids = ", ".join([str(x) for x in variant_id_list])
-            logging.info(f"Selected Reference ID: {selected_variant_ids}")
-            varinat_condition_stm = (
-                " AND `reference.id` IN (" + selected_variant_ids + ")"
+            # WARN: this take only one accession ID into account at a time. *not support multiple refs.
+            if reference_accession:
+                selected_dict = next(
+                    item
+                    for item in self.references
+                    if item["accession"] == reference_accession
+                )
+                selected_ref_ids = str(selected_dict["id"])
+            else:
+                ref_id_list = self.get_ref_variant_ID(profiles)
+                selected_ref_ids = ", ".join([str(x) for x in ref_id_list])
+
+            logging.info(
+                f"Found Reference ID base on given profile: {selected_ref_ids}"
             )
+            variant_condition_stm = " AND `reference.id` IN (" + selected_ref_ids + ")"
         else:
-            varinat_condition_stm = ""
-        # ------
+            variant_condition_stm = ""
+        # ------------------------
+        # Both prop. and profile are present.
         if property_sqls and profile_sqls:
             if len(profiles) > 1:
                 sample_selection_sql = (
@@ -2001,14 +2016,25 @@ class sonarDBManager:
                 )
             else:
                 sample_selection_sql = property_sqls + " INTERSECT " + profile_sqls
+
+            if reference_accession:
+                sample_selection_sql = (
+                    sample_selection_sql + " " + variant_condition_stm
+                )
+
         elif property_sqls or profile_sqls:
             sample_selection_sql = property_sqls + profile_sqls
+
+            if reference_accession:
+                sample_selection_sql = (
+                    sample_selection_sql + " " + variant_condition_stm
+                )
         else:
             if "sample" in reserved_props:
                 # if 'sample' is presented we just use only samples
                 samples_condition = []
                 for pname, vals in reserved_props.items():
-                    print("sample" + str(vals))
+                    logging.info("sample" + str(vals))
                     if pname == "sample":
                         for x in vals:
                             samples_condition.append('"' + x + '"')
@@ -2018,6 +2044,10 @@ class sonarDBManager:
                     + ")"
                 )
 
+                if reference_accession:
+                    sample_selection_sql = (
+                        sample_selection_sql + " " + variant_condition_stm
+                    )
                 property_sqls = []
                 property_vals = []
             else:
@@ -2029,7 +2059,7 @@ class sonarDBManager:
                         '"' + reference_accession + '"'
                     )
                 else:
-                    # should we use only sample or all alignment
+                    #  NOTE: Should we use only sample or all alignment?
                     sample_selection_sql = "SELECT id FROM sample"
 
         if self.debug:
@@ -2050,7 +2080,8 @@ class sonarDBManager:
             # CurrentSolution: we add reference column instead
             # m = ' `molecule.symbol`, "@" , '
         if self.debug:
-            logging.info(f"Genome element in sql: {genome_element_condition}")
+            # NOTE: genome_element_condition can also be considered as REF id.
+            logging.info(f"Slected Genome element in sql: {genome_element_condition}")
 
         if not showNX:
             nn = ' AND `variant.alt` != "N" '
@@ -2058,6 +2089,7 @@ class sonarDBManager:
         else:
             nn = ""
             nx = ""
+        tg = ' AND "variant.alt" != "." ' if ignoreTerminalGaps else ""
         # find element id for CDS
         cds_element_condition = [
             str(x) for x in self.get_element_ids(reference_accession, "cds")
@@ -2097,7 +2129,9 @@ class sonarDBManager:
             # TODO: deduplicate IDs
             selected_sample_ids = ", ".join([str(x["id"]) for x in sample_ids])
             if self.debug:
-                logging.info(f" 'Selected Samples': {selected_sample_ids}")
+                logging.info(
+                    f"Selected sample based on Properties: {selected_sample_ids}"
+                )
             # rows = {x['id']: {"id": x['id']} for x in sample_ids}
             # print(len(sample_ids))
 
@@ -2107,14 +2141,15 @@ class sonarDBManager:
             # We use two-stage query and then combine both results together to produce final result
             # 1. Query: get all properties based on selected IDs
             # 2. Query: get all AA/NT profile based on selected IDs and reference IDs
-            # Finally, we combine 1. and 2. based on outer join.
+            # Finally, we combine 1. and 2. based on JOIN.
 
             # output columns
             fields = ["`sample.name`"] + ["`" + x + "`" for x in self.properties]
             sql = "SELECT name as " + ", ".join(fields) + "FROM sample "
 
+            # NOTE: Use LEFT JOIN, because we rely on sample table (the left most one).
             joins = [
-                "LEFT JOIN (SELECT sample_id, value_"
+                " LEFT JOIN (SELECT sample_id, value_"
                 + y["datatype"]
                 + " as "
                 + x
@@ -2139,9 +2174,9 @@ class sonarDBManager:
 
             self.cursor.execute(_1_final_sql)
             _1_rows = self.cursor.fetchall()
-
-            # since some samples didn't return AA mutation., so we use LEFT JOIN to NT.
-            # ... and also remove unnecessay 'WHERE IN SAMPLE_IDs'
+            # NOTE:
+            # since some samples didn't return AA mutation., so we can use LEFT JOIN to NT.
+            # EDIT: 1. remove unnecessay 'WHERE IN SAMPLE_IDs'
             _2_final_sql = (
                 " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE "
                 + " FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
@@ -2152,9 +2187,10 @@ class sonarDBManager:
                 + ") AND "
                 + genome_element_condition
                 + nn
-                + varinat_condition_stm
+                + tg
+                + variant_condition_stm
                 + " GROUP BY `sample.id`, reference_accession) nt_profile "
-                + " LEFT JOIN "
+                + " JOIN "
                 + "( SELECT  `sample.id`, `reference.accession` AS reference_accession , group_concat("
                 + m
                 + ' `element.symbol`, ":" ,`variant.label`) AS _profile, `variant.id`'
@@ -2163,7 +2199,7 @@ class sonarDBManager:
                 + ")"
                 + cds_element_condition
                 + nx
-                + varinat_condition_stm
+                + variant_condition_stm
                 + " GROUP BY `sample.id`, reference_accession ) aa_profile "
                 + " ON nt_profile.`sample.id` = aa_profile.`sample.id` AND nt_profile.reference_accession =aa_profile.reference_accession "
                 + ", `sample` "
@@ -2241,6 +2277,7 @@ class sonarDBManager:
             # _1_rows = list(filter(None, _1_rows))
 
             # ------ alternative solution convert to df
+            # NOTE: not good idea for million rows.
             df_1 = pd.DataFrame(_1_rows)
             df_1.sort_values(by=["sample.name"], inplace=True)
             if self.debug:
@@ -2309,7 +2346,8 @@ class sonarDBManager:
             return _1_rows  # list(rows.values())
 
         elif format == "count":
-            # TODO: currently we count only samples not the sample-aligned wise.
+
+            # TODO: FIXME: currently we count only samples not the sample-aligned wise.
             logging.info("'--count' will return only unique sample.")
             sql = (
                 "SELECT COUNT(s2p.id) AS `count` FROM ("
@@ -2323,13 +2361,14 @@ class sonarDBManager:
                 + ") AND "
                 + genome_element_condition
                 + nn
+                + tg
                 + "GROUP BY `molecule.accession`, `variant.start`, `variant.ref`, `variant.alt` ORDER BY `molecule.accession`, `variant.start`"
             )
         else:
             sys.exit("error: '" + format + "' is not a valid output format")
         if self.debug:
             logging.info(
-                f"Before execute 'Select Samples': {sql} with {property_vals + profile_vals}"
+                f"Execute 'Select Samples': {sql} with {property_vals + profile_vals}"
             )
         self.cursor.execute(sql, property_vals + profile_vals)
         return self.cursor
