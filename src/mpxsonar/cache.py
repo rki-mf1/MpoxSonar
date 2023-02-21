@@ -716,7 +716,9 @@ class sonarCache:
         if not os.path.exists(output_paranoid):
             aligner = sonarAligner(cache_outdir=self.basedir)
 
-            qry, ref = aligner.align(qryfile, reffile)
+            ref, qry, cigar = aligner.align(
+                aligner.read_seqcache(qryfile), aligner.read_seqcache(reffile)
+            )
             with open(output_paranoid, "w+") as handle:
                 handle.write(
                     ">original_"
@@ -729,7 +731,9 @@ class sonarCache:
                     + qry
                     + "\n"
                 )
-        logging.warn(f"See {output_paranoid} for alignment comparison.")
+            logging.warn(
+                f"See {output_paranoid} for alignment comparison. CIGAR:{cigar}"
+            )
 
     def paranoid_align_multi(self, list_fail_samples, threads):  # noqa: C901
         l = len(list_fail_samples)
