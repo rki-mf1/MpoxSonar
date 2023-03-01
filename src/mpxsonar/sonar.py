@@ -369,7 +369,7 @@ def parse_args(args):
         "-v",
         "--version",
         action="version",
-        version="MPoxSonar " + VERSION,
+        version="[Parasail aligner] MPoxSonar " + VERSION,
         help="Show program's version number and exit.",
     )
 
@@ -462,6 +462,7 @@ def main(args):  # noqa: C901
     # other than the above
     # import
     if args.tool == "import":
+        logging.info("You are using Parasail aligner")
         sonarBasics.import_data(
             db=args.db,
             fasta=args.fasta,
