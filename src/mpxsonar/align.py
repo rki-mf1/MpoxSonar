@@ -204,7 +204,7 @@ class sonarAligner(object):
                     i += 1
                 # insertion at pos 0
                 if s == -1:
-                    ref = "-"
+                    ref = "."
                     alt = qry_seq[: i + 1]
                 else:
                     ref = ref_seq[s]

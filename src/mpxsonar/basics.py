@@ -537,6 +537,7 @@ class sonarBasics(object):
                 format=format,
                 output_column=output_column,
                 showNX=showNX,
+                ignoreTerminalGaps=ignoreTerminalGaps,
             )
             if format == "csv" or format == "tsv":
                 logging.info("Total result: " + str(len(cursor)))
