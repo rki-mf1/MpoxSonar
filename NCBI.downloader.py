@@ -49,33 +49,36 @@ URI = urlparse(os.getenv("DB_URL", ""))
 
 
 def get_existing_sample_list():
+    try:
+        database = URI.path.replace("/", "")
+        conn_params = {
+            "user": URI.username,
+            "password": URI.password,
+            "host": URI.hostname,
+            "port": URI.port,
+            "database": database,
+        }
+        # Establish a connection
+        connection = mariadb.connect(**conn_params)
+        cursor = connection.cursor()
+        # retrieve data
+        cursor.execute("SELECT name FROM sample;")
+        # print content
+        db_sample_list = [item[0] for item in cursor.fetchall()]
 
-    database = URI.path.replace("/", "")
-    conn_params = {
-        "user": URI.username,
-        "password": URI.password,
-        "host": URI.hostname,
-        "port": URI.port,
-        "database": database,
-    }
-    # Establish a connection
-    connection = mariadb.connect(**conn_params)
-    cursor = connection.cursor()
-    # retrieve data
-    cursor.execute("SELECT name FROM sample;")
-    # print content
-    db_sample_list = [item[0] for item in cursor.fetchall()]
-
-    # free resources
-    cursor.close()
-    connection.close()
+        # free resources
+        cursor.close()
+        connection.close()
+    except Exception as e:
+        logging.error("Database connection: Error at %s", e)
+        return []
     return db_sample_list
 
 
 def download(save_path):  # noqa: C901
     # nucleotide nuccore
     DB = "nucleotide"
-    QUERY = "Monkeypox virus[Organism] AND complete[prop]"
+    QUERY = "Monkeypox virus[Organism]"
     BATCH_SIZE = 10
     # 1
     # retmax=1 just returns first result of possibly many.
@@ -164,17 +167,17 @@ def download(save_path):  # noqa: C901
             except HTTPError as err:
                 if 500 <= err.code <= 599:
                     logging.warning(f"Received error from server {err}")
-                    logging.warning("Attempt {attempt} of 3")
-                    time.sleep(random.randint(30, 60))
+                    logging.warning(f"Attempt {attempt} of 3")
+                    time.sleep(random.randint(60, 100))
                 if 400 == err.code:
                     logging.warning(f"Received error from server {err}")
-                    logging.warning("Attempt {attempt} of 3")
-                    time.sleep(random.randint(30, 60))
+                    logging.warning(f"fAttempt {attempt} of 3")
+                    time.sleep(random.randint(60, 100))
                 else:
                     raise
             except Exception as e:
                 logging.error("Error at %s", "download sample", exc_info=e)
-                time.sleep(random.randint(3, 6))
+                time.sleep(random.randint(10, 20))
 
         if attempt == 3 and not success:
             fetch_handle.close()
