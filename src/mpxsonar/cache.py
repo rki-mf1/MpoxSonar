@@ -13,6 +13,7 @@ import re
 import shutil
 import sys
 import traceback
+from typing_extensions import deprecated
 
 from mpire import WorkerPool
 import pandas as pd
@@ -706,7 +707,7 @@ class sonarCache:
             logging.info(
                 f"Start paranoid alignment on {len(list_fail_samples)} sample."
             )
-            self.paranoid_align_multi(list_fail_samples, threads)
+            # self.paranoid_align_multi(list_fail_samples, threads)
         count_sample = count_sample - len(list_fail_samples)
         logging.info("Total sample insert: " + str(count_sample))
 
@@ -749,8 +750,11 @@ class sonarCache:
                 pbar.update(1)
 
     def paranoid_check(self, refseqs, sample_data, dbm):  # noqa: C901
-        """link to import_cached_samples
+        """
+        The current version of paranoid test.
+        link to import_cached_samples
 
+        
         return dict.
         """
         try:
@@ -803,9 +807,9 @@ class sonarCache:
             )
 
             with open(qryfile, "w+") as handle:
-                handle.write(">seq\n" + seq)
+                handle.write(seq)
             with open(reffile, "w+") as handle:
-                handle.write(">ref\n" + orig_seq)
+                handle.write(orig_seq)
             output_paranoid = os.path.join(
                 self.basedir, f"{sample_name}.withref.{ref_name}.fail-paranoid.fna"
             )
@@ -830,9 +834,11 @@ class sonarCache:
             }
         else:
             return {}
-
+    
+    @deprecated
     def paranoid_test(self, refseqs, sample_data, dbm):  # noqa: C901
         """link to import_cached_samples
+        depreceted 
         The purpose of pranoid test is try to
         :Parameters:
 
