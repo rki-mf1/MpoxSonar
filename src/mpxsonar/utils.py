@@ -71,3 +71,59 @@ def insert_before_keyword(s, keyword, new_string):
     modified_string = s[:index] + new_string + s[index:]
 
     return modified_string
+
+
+def calculate_mutation_type_DNA(ref, alt):
+    """
+    example cases;
+    1. C>T SNV
+    2. T>TTT (insert two positions) frameshift
+    3. TAG> deleltion
+    4. A>AGGG insertion
+    5. T> frameshift
+    6. A>AGAAGTAGAA insertion
+    7. >A frameshift
+    # The
+    Returns:
+        str: The NT variant type. (SNV,DEL,INS,frameshift,unknown)
+    """
+    # to remove empty space from string ' '
+    ref = ref.replace(" ", "")
+    ref_len = len(ref)
+    alt = alt.replace(" ", "")
+    alt_len = len(alt)
+
+    if ref_len == alt_len:
+        return "SNV"
+    elif ref_len != alt_len:  # INSERTION
+        if ref_len < alt_len:
+
+            if ref_len == 0:  # when the ref is empty
+                if alt_len % 3 != 0:
+                    return "frameshift"
+                else:
+                    return "INS"
+            else:
+                # need to ignore a first position at 'alt' before
+                # doing a calucation.
+                # (T>TTT, in this case TT will be counted only )
+                alt_len = len(alt[1:])
+
+                if alt_len % 3 != 0:
+                    return "frameshift"
+                else:
+                    return "INS"
+
+        elif ref_len > alt_len:  # DELETION
+            if ref_len % 3 != 0:
+                return "frameshift"
+            else:
+                return "DEL"
+        else:
+            return "unknown"
+    else:
+        return "unknown"
+
+
+def calculate_mutation_type_v2():
+    pass

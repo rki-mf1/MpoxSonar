@@ -519,8 +519,9 @@ class sonarBasics(object):
         # print(profiles)
         with sonarDBManager(db, debug=debug) as dbm:
             if format == "vcf" and reference is None:
+                logging.info("No reference is given.")
                 reference = dbm.get_default_reference_accession()
-                logging.info("Query using reference: all references")
+                logging.info(f"Using last added reference: {reference}")
             elif format != "vcf" and reference is None:
                 # retrieve all references
                 # reference = None

@@ -200,6 +200,22 @@ class sonarAligner(object):
             aa.append(tt[codon])
         return "".join(aa)
 
+    def detect_frameshifts(self, start, end, alt, cds_df, coding_sites_set):
+        # handling deletions
+        if alt == " " or alt == "":
+            coords = set(range(start, end))
+            cds_df["gap"] = cds_df.apply(lambda x: 1 if x.pos in coords else 0, axis=1)
+            groups = cds_df.groupby(
+                [cds_df["elemid"], (cds_df["gap"].shift() != cds_df["gap"]).cumsum()]
+            ).agg({"gap": sum})
+            for _, row in groups.iterrows():
+                if row["gap"] % 3 != 0:
+                    return "1"
+        # handling insertions
+        elif (len(alt) - 1) % 3 > 0 and start in coding_sites_set:
+            return "1"
+        return "0"
+
     def lift_vars(self, nuc_vars, lift_file, tt_file):  # noqa: C901
         df = pd.read_pickle(lift_file)
         # print(df)

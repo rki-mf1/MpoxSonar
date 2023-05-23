@@ -102,6 +102,7 @@ class sonarDBManager:
         self.db_database = self.__uri.path.replace("/", "")
 
         self.__properties = False
+        self.__source_references_df = None
         self.__references = {}
         self.__illegal_properties = {}
         self.__default_reference = False
@@ -277,7 +278,6 @@ class sonarDBManager:
     def references(self):
         """
         return all references
-
         """
         if self.__references == {}:
             sql = "SELECT `id`, `accession`, `description`, `organism` FROM reference;"
@@ -288,6 +288,25 @@ class sonarDBManager:
             else:
                 self.__references = {}
         return self.__references
+
+    @property
+    def source_references(self):
+        """
+        Return only type that is equal to 'source'
+        from element table.
+
+        Return
+            dataframe
+        """
+        if self.__source_references_df is None:
+            all_elem_dict = self.get_molecule_ids()
+            _list = []
+            for key, value in all_elem_dict.items():
+                _data = self.get_source(molecule_id=value)
+                #  pd.DataFrame.from_dict(dbm.get_elements(molecule_id = value))
+                _list.append(_data)
+            self.__source_references_df = pd.DataFrame(_list)
+        return self.__source_references_df
 
     # SETUP
 
@@ -691,7 +710,16 @@ class sonarDBManager:
         return eid
 
     def insert_variant(
-        self, alignment_id, element_id, ref, alt, start, end, label, parent_id=""
+        self,
+        alignment_id,
+        element_id,
+        ref,
+        alt,
+        start,
+        end,
+        label,
+        parent_id="",
+        vat_type="",
     ):
         """
         Inserts a variant if it does not exist in the database. Based on the type of the element the element id refers to,
@@ -712,6 +740,22 @@ class sonarDBManager:
         sql = "INSERT IGNORE INTO alignment2variant (alignment_id, variant_id) VALUES(?, ?);"
         self.cursor.execute(sql, [alignment_id, vid])
         return vid
+
+    def get_all_NT_variants(self):
+        """
+        GET only NT variants.
+        """
+        sql = """ SELECT *
+                FROM
+                    (
+                        SELECT element.id AS elem_ID ,element.`accession`
+                        FROM element
+                        WHERE element.type = "source"
+                    ) AS ref_table
+                JOIN variant ON ref_table.elem_ID = variant.element_ID;"""
+        self.cursor.execute(sql)
+        rows = self.cursor.fetchall()
+        return rows
 
     # DELETING DATA
     def delete_samples(self, *sample_names):
@@ -973,6 +1017,9 @@ class sonarDBManager:
         return row
 
     def get_source(self, molecule_id):
+        """
+        Return full sequence.
+        """
         return self.get_elements(molecule_id, "source")[0]
 
     def get_annotation(
@@ -2358,13 +2405,16 @@ class sonarDBManager:
             )
         elif format == "vcf":
             sql = (
-                "SELECT `element.id`,  `element.type`, `molecule.accession`, `variant.start`, `variant.ref`, `variant.alt`, `variant.label`, `sample.name` as samples FROM variantView WHERE `sample.id` IN ("
+                "SELECT `element.id`, `element.type`, `molecule.accession`, `variant.start`, `variant.ref`, `variant.alt`, `variant.label`, `sample.name` as samples FROM variantView WHERE `sample.id` IN ("
                 + sample_selection_sql
                 + ") AND "
                 + genome_element_condition
                 + nn
                 + "GROUP BY `molecule.accession`, `variant.start`, `variant.ref`, `variant.alt` ORDER BY `molecule.accession`, `variant.start`"
             )
+            if self.debug:
+                logging.debug(f"To sql: {sql}")
+
         else:
             sys.exit("error: '" + format + "' is not a valid output format")
         if self.debug:
@@ -2463,3 +2513,71 @@ class sonarDBManager:
                 logging.info("Success: Database upgrade was successfully completed")
             else:
                 logging.error("Error: Upgrade was not completed")
+
+    def get_map_element_NT(self):
+        """
+        This function is used to get all NTs that maps with element symbol.
+
+        Return examples;
+        element.id;element.start;element.end;element.symbol;vaiant_id;label;start;end;element_parent_id;accession
+        23;834;1575;OPG001;87025948;T835N;834;835;22;NC_063383.1
+        23;834;1575;OPG001;87025949;C836N;835;836;22;NC_063383.1
+        23;834;1575;OPG001;99854237;C836T;835;836;22;NC_063383.1
+
+        """
+        sql = """
+        SELECT  `element.id`, `element.start`, `element.end`, `element.symbol`,
+        variant.id AS variant_id , variant.label, variant.start, variant.end,
+        variant.element_id AS element_parent_id, T2.accession
+        FROM
+            (SELECT
+                element.molecule_id AS "element.molecule_id",
+                element.id AS "element.id",
+                element.accession AS "element.accession",
+                element.symbol AS "element.symbol",
+                element.standard AS "element.standard",
+                element.type AS "element.type",
+                element.start AS "element.start",
+                element.end AS "element.end",
+                element.parent_id AS "element.parent_id"
+            FROM
+                `mpx`.element
+            WHERE element.`type` = "gene" ) AS T1
+
+        JOIN `mpx`.variant ON 	`mpx`.variant.start >= T1.`element.start` AND
+                `mpx`.variant.end <= T1.`element.end` AND
+                `mpx`.variant.element_id = T1.`element.parent_id`
+        JOIN 	( SELECT molecule.id, reference.accession
+                FROM  `mpx`.molecule
+                JOIN `mpx`.reference ON molecule.reference_id = reference.id)
+                AS T2 ON T1.`element.molecule_id` = T2.id;
+        """
+
+        self.cursor.execute(sql)
+        rows = self.cursor.fetchall()
+        return rows
+
+    def update_elementID_variantTable(self, id, pre_ref=""):
+        sql = "UPDATE variant SET pre_ref = %s WHERE id = %s;"
+        # print(sql)
+        self.cursor.execute(sql, (pre_ref, id))
+
+    def update_variant_var_type(self, id, var_type=""):
+        sql = "UPDATE variant SET var_type = %s WHERE id = %s;"
+        # print(sql)
+        self.cursor.execute(sql, (var_type, id))
+
+    def update_table_column(
+        self, table_name, column_name, new_value, condition_column, condition_value
+    ):
+        # Construct the SQL query
+        sql = (
+            f"UPDATE {table_name} SET {column_name} = %s WHERE {condition_column} = %s;"
+        )
+
+        # Execute the query
+        self.cursor.execute(sql, (new_value, condition_value))
+
+        sql = "UPDATE variant SET pre_ref = %s WHERE id = %s;"
+        # print(sql)
+        self.cursor.execute(sql, (new_value, condition_value))

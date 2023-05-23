@@ -13,6 +13,9 @@ from tabulate import tabulate
 from . import logging
 from .basics import sonarBasics
 from .dbm import sonarDBManager
+from .dev import fix_annotation
+from .dev import fix_element_id_NT
+from .dev import fix_pre_ref
 from .utils import open_file
 
 # from .cache import sonarCache  # noqa: F401
@@ -348,8 +351,24 @@ def parse_args(args):
     )
 
     # dev parser
-    # subparsers.add_parser("dev", parents=[general_parser])
-
+    parser_dev = subparsers.add_parser(
+        "dev", parents=[general_parser], help="admin mode."
+    )
+    parser_dev.add_argument(
+        "--up_vartype",
+        help="update variant type, this will annotate NT variant (SNV,INDEL,Frameshift)",
+        action="store_true",
+    )
+    parser_dev.add_argument(
+        "--up_ele_nt",
+        help="update element_id at VariantTable, this will fix element symbol of NT.",
+        action="store_true",
+    )
+    parser_dev.add_argument(
+        "--up_pre_ref",
+        help="update pre-char of ref. column, this will add the character position before ref. column.",
+        action="store_true",
+    )
     # db-upgrade parser
     # subparsers.add_parser(
     #    "db-upgrade",
@@ -718,10 +737,17 @@ def main(args):  # noqa: C901
 
     # dev
     if args.tool == "dev":
-        print("***dev mode***")
-        with sonarDBManager(args.db, debug=debug) as dbm:
-            for feature in dbm.get_annotation():
-                print(feature)
+        logging.info("***Fix mode***")
+        if args.up_vartype:
+            fix_annotation(args.db, debug=args.debug)
+        elif args.up_pre_ref:
+            fix_pre_ref(args.db, debug=args.debug)
+        elif args.up_ele_nt:
+            fix_element_id_NT(args.db, debug=args.debug)
+        # with sonarDBManager(args.db, debug=debug) as dbm:
+        #    for feature in dbm.get_annotation():
+        #        print(feature)
+
     # Finished successfully
     return 0
 
