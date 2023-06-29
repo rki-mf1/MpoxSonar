@@ -13,6 +13,9 @@ from tabulate import tabulate
 from . import logging
 from .basics import sonarBasics
 from .dbm import sonarDBManager
+from .dev import fix_annotation
+from .dev import fix_element_id_NT
+from .dev import fix_pre_ref
 from .utils import open_file
 
 # from .cache import sonarCache  # noqa: F401
@@ -46,7 +49,7 @@ def parse_args(args):
     )
     general_parser.add_argument(
         "--debug",
-        help="activate debugging mode showing all sqllite queries on screen",
+        help="activate debugging mode showing all queries and  debug info on screen",
         action="store_true",
     )
 
@@ -149,10 +152,19 @@ def parse_args(args):
     )
     parser_import.add_argument(
         "--tsv",
+        metavar="TSV_FILE",
         help="tab-delimited file containing sample properties to import",
         type=str,
         nargs="+",
-        default=None,
+        default=[],
+    )
+    parser_import.add_argument(
+        "--csv",
+        metavar="CSV_FILE",
+        help="comma-delimited file containing sample properties to import",
+        type=str,
+        nargs="+",
+        default=[],
     )
     parser_import.add_argument(
         "--cols",
@@ -254,6 +266,13 @@ def parse_args(args):
         type=str,
         default=None,
     )
+    parser_addprops.add_argument(
+        "--subject",
+        metavar="VAR",
+        help="choose between sample or variant property (by default: sample)",
+        choices=["sample", "variant"],
+        default="sample",
+    )
 
     # delete-prop parser
     parser_delprops = subparsers.add_parser(
@@ -348,8 +367,25 @@ def parse_args(args):
     )
 
     # dev parser
-    # subparsers.add_parser("dev", parents=[general_parser])
+    parser_dev = subparsers.add_parser(
+        "dev", parents=[general_parser], help="To perform admin tasks."
+    )
 
+    parser_dev.add_argument(
+        "--up_vartype",
+        help="update variant type, this will annotate NT variant (SNV,INDEL,Frameshift)",
+        action="store_true",
+    )
+    parser_dev.add_argument(
+        "--up_ele_nt",
+        help="update element_id at VariantTable, this will fix element symbol of NT.",
+        action="store_true",
+    )
+    parser_dev.add_argument(
+        "--up_pre_ref",
+        help="update pre-char of ref. column, this will add the character position before ref. column.",
+        action="store_true",
+    )
     # db-upgrade parser
     # subparsers.add_parser(
     #    "db-upgrade",
@@ -373,6 +409,33 @@ def parse_args(args):
         help="Show program's version number and exit.",
     )
 
+    # annotate parser
+    parser_annotate = subparsers.add_parser(
+        "import-ann",
+        parents=[general_parser],
+        help="Import annotated variant from the SnpEff tool (please see readme.md)",
+    )
+    parser_annotate.add_argument(
+        "--sonar-hash",
+        help="The .sonar_hash file (generate from match command with vcf format).",
+        type=str,
+        metavar="FILE",
+    )
+    parser_annotate.add_argument(
+        "--ann-input",
+        help="tab-delimited file (please see readme.md)",
+        type=str,
+        metavar="FILE",
+    )
+
+    parser_annotate.add_argument(
+        "--sample-file",
+        metavar="FILE",
+        help="file containing pair of annotated file path and .snoar_hash path",
+        type=str,
+        nargs="+",
+        default=[],
+    )
     # register known arguments
     pargs = parser.parse_known_args(args=args, namespace=user_namespace)
     # register dynamic arguments
@@ -466,10 +529,11 @@ def main(args):  # noqa: C901
         sonarBasics.import_data(
             db=args.db,
             fasta=args.fasta,
-            tsv=args.tsv,
+            csv_files=args.csv,
+            tsv_files=args.tsv,
             cols=args.cols,
             cachedir=args.cache,
-            autodetect=not args.no_autodetect,
+            autolink=not args.no_autodetect,
             progress=not args.no_progress,
             update=not args.no_update,
             threads=args.threads,
@@ -487,6 +551,7 @@ def main(args):  # noqa: C901
             cols = [
                 "name",
                 "argument",
+                "subject",
                 "description",
                 "data type",
                 "query type",
@@ -502,6 +567,7 @@ def main(args):  # noqa: C901
                 rows.append([])
                 rows[-1].append(prop)
                 rows[-1].append("--" + prop)
+                rows[-1].append(dbm.properties[prop]["target"])
                 rows[-1].append(fill(dbm.properties[prop]["description"], width=25))
                 rows[-1].append(dt)
                 rows[-1].append(dbm.properties[prop]["querytype"])
@@ -545,7 +611,12 @@ def main(args):  # noqa: C901
                 elif args.dtype == "zip":
                     args.qtype = "zip"
             dbm.add_property(
-                args.name, args.dtype, args.qtype, args.descr, args.default
+                args.name,
+                args.dtype,
+                args.qtype,
+                args.descr,
+                args.subject,
+                args.default,
             )
         logging.info("Inserted successfully: %s", args.name)
 
@@ -714,6 +785,28 @@ def main(args):  # noqa: C901
                 print("*** no references ***")
                 exit(0)
             print(tabulate(rows, headers="keys", tablefmt="fancy_grid"))
+    elif args.tool == "import-ann":
+        paired_list = []
+        if args.sample_file:
+            logging.info("Bulk insert: ")
+            for file in args.sample_file:
+                with open_file(file, compressed="auto") as f:
+                    for line in f:
+                        if line.strip() == "":
+                            continue
+                        ann_input, sonar_hash = line.split()
+                        check_file(ann_input)
+                        check_file(sonar_hash)
+                        paired_list.append((ann_input, sonar_hash))
+        else:
+            if args.ann_input is None or args.sonar_hash is None:
+                logging.error("Both --ann-input and --sonar-hash are required.")
+                sys.exit(1)
+            check_file(args.ann_input)
+            check_file(args.sonar_hash)
+            paired_list.append((args.ann_input, args.sonar_hash))
+        sonarBasics.process_annotation(args.db, paired_list)
+        pass
 
     # optimize
     if args.tool == "optimize":
@@ -722,10 +815,14 @@ def main(args):  # noqa: C901
 
     # dev
     if args.tool == "dev":
-        print("***dev mode***")
-        with sonarDBManager(args.db, debug=debug) as dbm:
-            for feature in dbm.get_annotation():
-                print(feature)
+        logging.info("***Dev. mode***")
+        if args.up_vartype:
+            fix_annotation(args.db, debug=args.debug)
+        elif args.up_pre_ref:
+            fix_pre_ref(args.db, debug=args.debug)
+        elif args.up_ele_nt:
+            fix_element_id_NT(args.db, debug=args.debug)
+        logging.info("***Done...***")
     # Finished successfully
     return 0
 

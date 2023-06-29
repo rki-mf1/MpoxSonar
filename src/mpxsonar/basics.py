@@ -7,20 +7,23 @@
 import collections
 import csv
 from datetime import datetime
+import json
 import os
 import sys
 
 from Bio import SeqIO
 from mpire import WorkerPool
+import pandas as pd
 from tqdm import tqdm
 
+from mpxsonar.annotation import read_sonar_hash
+from mpxsonar.annotation import read_tsv_snpSift
 from . import __version__
 from . import logging
 from .align import sonarAligner
 from .cache import sonarCache
 from .dbm import sonarDBManager
 from .utils import harmonize
-from .utils import print_max_min_rule
 
 
 # CLASS
@@ -63,33 +66,56 @@ class sonarBasics(object):
                         "date",
                         "date",
                         "date sample has been imported to the database",
+                        "sample",
                     )
                     dbm.add_property(
                         "modified",
                         "date",
                         "date",
                         "date when sample data has been modified lastly",
+                        "sample",
                     )
                     dbm.add_property(
                         "SEQ_TECH",
                         "text",
                         "text",
                         "stores the sequencing technologies.",
+                        "sample",
                     )
                     dbm.add_property(
-                        "LENGTH", "text", "text", "stores the genome lenght"
+                        "LENGTH",
+                        "integer",
+                        "numeric",
+                        "stores the genome lenght",
+                        "sample",
                     )
                     dbm.add_property(
                         "GEO_LOCATION",
                         "text",
                         "text",
                         "stores the GEO location",
+                        "sample",
+                    )
+                    dbm.add_property(
+                        "COUNTRY",
+                        "text",
+                        "text",
+                        "stores a country",
+                        "sample",
+                    )
+                    dbm.add_property(
+                        "GENOME_COMPLETENESS",
+                        "text",
+                        "text",
+                        "stores genome completeness",
+                        "sample",
                     )
                     dbm.add_property(
                         "COLLECTION_DATE",
                         "date",
                         "date",
                         "stores the sample collection date",
+                        "sample",
                     )
                     # adding reference
                     if not reference_gb:
@@ -323,9 +349,11 @@ class sonarBasics(object):
                         )
                     # adding cds annotation
                     elif feat.type == "CDS":
-                        # pseudogene is unknown
+                        parts = sonarBasics.process_segments(feat.location.parts, True)
+                        # when pseudogene is unknown
                         if "pseudogene" in feat.qualifiers:
                             continue
+                        # when gene symbol is not available.
                         if "gene" in feat.qualifiers:
                             symbol = feat.qualifiers["gene"][0]
                         else:
@@ -341,11 +369,18 @@ class sonarBasics(object):
                                 "gene": symbol,
                                 "sequence": feat.qualifiers["translation"][0],
                                 "description": feat.qualifiers["product"][0],
-                                "parts": sonarBasics.process_segments(
-                                    feat.location.parts, True
-                                ),
+                                "parts": parts,
                             }
                         )
+                        if sum([abs(x[1] - x[0]) for x in parts]) % 3 != 0:
+                            sys.exit(
+                                "gbk error: length of cds '"
+                                + feat.qualifiers["protein_id"][0]
+                                + "' is not a multiple of 3 ("
+                                + str(sum([abs(x[1] - x[2]) for x in parts]))
+                                + ")."
+                            )
+
             except KeyError as e:
                 logging.exception(e)
                 logging.error("-----------")
@@ -356,13 +391,20 @@ class sonarBasics(object):
 
     # importing
     @staticmethod
+    def get_csv_colnames(fname, delim=","):
+        with open(fname, "r") as handle:
+            csvdict = csv.DictReader(handle, delimiter=delim)
+            return list(csvdict.fieldnames)
+
+    @staticmethod
     def import_data(  # noqa: C901
         db,
         fasta=[],
-        tsv=[],
+        csv_files=[],
+        tsv_files=[],
         cols=[],
         cachedir=None,
-        autodetect=False,
+        autolink=False,
         progress=False,
         update=True,
         threads=1,
@@ -377,7 +419,7 @@ class sonarBasics(object):
                 logging.info("import mode: updating existing samples")
 
         if not fasta:
-            if not tsv or not update:
+            if (not tsv_files and not csv_files) or not update:
                 logging.info("Nothing to import.")
                 exit(0)
 
@@ -386,27 +428,34 @@ class sonarBasics(object):
             db_properties = set(dbm.properties.keys())
             db_properties.add("sample")
 
-        colnames = {x: x for x in db_properties} if autodetect else {}
-        for x in cols:
-            if x.count("=") != 1:
-                sys.exit(
-                    "input error: " + x + " is not a valid sample property assignment."
-                )
-            k, v = x.split("=")
-            if k not in db_properties:
-                sys.exit(
-                    "input error: sample property "
-                    + k
-                    + " is unknown to the selected database. Use list-props to see all valid properties."
-                )
-            colnames[k] = v
+        propnames = {x: x for x in db_properties} if autolink else {}
 
-        if "sample" not in colnames:
-            sys.exit("input error: a sample column has to be assigned.")
-
+        # csv/tsv file processing
         properties = collections.defaultdict(dict)
-        if tsv:
-            for fname in tsv:
+        metafiles = [(x, ",") for x in csv_files] + [(x, "\t") for x in tsv_files]
+        if metafiles:
+            for x in cols:
+                if x.count("=") != 1:
+                    sys.exit(
+                        "input error: "
+                        + x
+                        + " is not a valid sample property assignment."
+                    )
+                k, v = x.split("=")
+                if k == "SAMPLE":
+                    k = "sample"
+                if k not in db_properties:
+                    sys.exit(
+                        "input error: sample property "
+                        + k
+                        + " is unknown to the selected database. Use list-props to see all valid properties."
+                    )
+                propnames[k] = v
+                propnamekeys = sorted(propnames.keys())
+            if "sample" not in propnames:
+                sys.exit("input error: a sample column has to be assigned.")
+
+            for fname, delim in metafiles:
                 with open(fname, "r") as handle, tqdm(
                     desc="processing " + fname + "...",
                     total=os.path.getsize(fname),
@@ -418,37 +467,37 @@ class sonarBasics(object):
                     print("\n")
                     line = handle.readline()
                     pbar.update(len(line))
-                    fields = line.strip("\r\n").split("\t")
+                    fields = sonarBasics.get_csv_colnames(fname, delim)
                     # logging.info(f"Read Header:{fields}")
-                    tsv_cols = {}
+                    cols = {}
                     if not quiet:
-                        print()
-                    for x in sorted(colnames.keys()):
-                        c = fields.count(colnames[x])
+                        print("linking data from:", fname)
+                    for x in propnamekeys:
+                        c = fields.count(propnames[x])
                         if c == 1:
-                            tsv_cols[x] = fields.index(colnames[x])
+                            cols[x] = fields.index(propnames[x])
                             if not quiet:
-                                print("  " + x + " <- " + colnames[x])
+                                print("  " + x + " <- " + propnames[x])
                         elif c > 1:
                             sys.exit(
-                                "error: " + colnames[x] + " is not an unique column."
+                                "error: " + propnames[x] + " is not an unique column."
                             )
-                    if "sample" not in tsv_cols:
+                    if "sample" not in cols:
                         sys.exit(
                             "error: tsv file does not contain required sample column."
                         )
-                    elif len(tsv_cols) == 1:
+                    elif len(cols) == 1:
                         sys.exit(
                             "input error: tsv does not provide any informative column."
                         )
                     for line in handle:
                         pbar.update(len(line))
                         fields = line.strip("\r\n").split("\t")
-                        sample = fields[tsv_cols["sample"]]
-                        for x in tsv_cols:
+                        sample = fields[cols["sample"]]
+                        for x in cols:
                             if x == "sample":
                                 continue
-                            properties[sample][x] = fields[tsv_cols[x]]
+                            properties[sample][x] = fields[cols[x]]
 
         # setup cache
         cache = sonarCache(
@@ -461,7 +510,7 @@ class sonarBasics(object):
             disable_progress=not progress,
             refacc=reference,
         )
-        logging.info(print_max_min_rule(cache.get_refseq(reference)))
+        # logging.info(print_max_min_rule(cache.get_refseq(reference)))
         # importing sequences
         if fasta:
             cache.add_fasta(*fasta, propdict=properties)
@@ -483,8 +532,8 @@ class sonarBasics(object):
             cache.import_cached_samples(threads)
 
         # importing properties
-        if tsv:
-            logging.info("Import meta data.")
+        if metafiles:
+            logging.info("Import meta data...")
             with sonarDBManager(db, readonly=False, debug=debug) as dbm:
                 for sample_name in tqdm(
                     properties,
@@ -521,7 +570,7 @@ class sonarBasics(object):
         with sonarDBManager(db, debug=debug) as dbm:
             if format == "vcf" and reference is None:
                 reference = dbm.get_default_reference_accession()
-                logging.info("Query using reference: all references")
+                logging.info(f"Query using default reference: {reference}")
             elif format != "vcf" and reference is None:
                 # retrieve all references
                 # reference = None
@@ -560,10 +609,15 @@ class sonarBasics(object):
 
     # restore
     @staticmethod
-    def restore(
+    def restore(  # noqa: C901
         db, *samples, reference_accession=None, aligned=False, outfile=None, debug=False
     ):
         with sonarDBManager(db, readonly=True, debug=debug) as dbm:
+            if not samples:
+                samples = [x for x in dbm.iter_sample_names()]
+            if not samples:
+                print("No samples stored in the given database.")
+                sys.exit(0)
             handle = sys.stdout if outfile is None else open(outfile, "w")
             gap = "-" if aligned else ""
             gapalts = {" ", "."}
@@ -578,7 +632,7 @@ class sonarBasics(object):
                         sample, reference_accession=reference_accession
                     )
                 }
-                gap = "-" if aligned else ""
+                # gap = "-" if aligned else ""
                 for vardata in dbm.iter_dna_variants(sample, *molecules.keys()):
                     if aligned and len(vardata["variant.alt"]) > 1:
                         vardata["variant.alt"] = (
@@ -737,48 +791,94 @@ class sonarBasics(object):
 
     # vcf
     def exportVCF(cursor, reference, outfile=None, na="*** no match ***"):  # noqa: C901
+        """
+        This function is used to output vcf file and hash.sonar file
+
+        POS position in VCF format: 1-based position
+        """
         records = collections.OrderedDict()
         all_samples = set()
+        sample_hash_list = {}
+        IDs_list = {}
+
         for row in cursor.fetchall():  # sonarBasics.iter_formatted_match(cursor):
-            chrom, pos, ref, alt, samples = (
+            # print(row)
+            element_id, variant_id, chrom, pos, ref, alt, samples, seqhash = (
+                row["element.id"],
+                row["variant.id"],
                 row["molecule.accession"],
                 row["variant.start"],
                 row["variant.ref"],
                 row["variant.alt"],
                 row["samples"],
+                row["seqhash"],
             )
-
+            # POS position in VCF format: 1-based position
+            pos = pos + 1
+            # print(chrom, pos, ref, alt, samples)
+            # reference ID is used just for now
             if chrom not in records:
                 records[chrom] = collections.OrderedDict()
             if pos not in records[chrom]:
                 records[chrom][pos] = {}
             if ref not in records[chrom][pos]:
                 records[chrom][pos][ref] = {}
-            records[chrom][pos][ref][alt] = set(samples.split("\t"))
+            if alt not in records[chrom][pos][ref]:
+                records[chrom][pos][ref][alt] = []
+            records[chrom][pos][ref][alt].append(samples)  # set(samples.split("\t"))
             all_samples.update(samples.split("\t"))
 
+            # handle the variant and sample.
+            if samples not in IDs_list:
+                IDs_list[samples] = []
+            IDs_list[samples].append(
+                {"element_id": element_id, "variant_id": variant_id}
+            )
+
+            # handle the hash and sample.
+            sample_hash_list[samples] = seqhash
+
+        # print(records)
         if len(records) != 0:
             all_samples = sorted(all_samples)
+
             if outfile is None:
                 handle = sys.stdout
             else:
                 # if not outfile.endswith(".gz"):
                 # outfile += ".gz"
+
+                # Combine sonar_hash and reference into a single dictionary
+                data = {
+                    "sample_variantTable": IDs_list,
+                    "sample_hashes": sample_hash_list,
+                    "reference": reference,
+                }
+                # Remove the existing extension from outfile and then append a new extension.
+                filename = os.path.splitext(outfile)[0] + ".sonar_hash"
+                with open(filename, "w") as file:
+                    json.dump(data, file)
+                    logging.info(
+                        f"sample list output: '{filename}', this file is used when you want to reimport annotated data back to the database."
+                    )
                 handle = open(outfile, mode="w")  # bgzf.open(outfile, mode='wb')
 
             # vcf header
             handle.write("##fileformat=VCFv4.2\n")
-            handle.write("##poweredby=MPXSonar\n")
+            handle.write(
+                "##CreatedDate=" + datetime.now().strftime("%d/%m/%Y,%H:%M:%S") + "\n"
+            )
+            handle.write("##Source=MpoxSonar" + sonarBasics().get_version() + "\n")
+            # handle.write("##sonar_sample_hash="+str(sample_hash_list)+"\n")
             handle.write("##reference=" + reference + "\n")
             handle.write(
-                '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype"\n'
+                '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
             )
             handle.write(
                 "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t"
                 + "\t".join(all_samples)
                 + "\n"
             )
-
             # records
             for chrom in records:
                 for pos in records[chrom]:
@@ -790,16 +890,22 @@ class sonarBasics(object):
                             gts = []
                             for alt in alts:
                                 samples = records[chrom][pos][ref][alt]
-                                alt_samples.update(samples)
+                                # print(samples)
+
                                 gts.append(
                                     ["1" if x in samples else "0" for x in all_samples]
                                 )
+                                alt_samples.update(samples)
+
+                            # NOTE: this code part produce 0/1, 1/0
                             gts = [
                                 ["0" if x in alt_samples else "1" for x in all_samples]
                             ] + gts
+
                             record = [
                                 chrom,
                                 str(pos),
+                                ".",
                                 ref,
                                 ",".join(alts),
                                 ".",
@@ -807,6 +913,7 @@ class sonarBasics(object):
                                 ".",
                                 "GT",
                             ] + ["/".join(x) for x in zip(*gts)]
+
                         # dels (individual output)
                         for alt in [
                             x for x in records[chrom][pos][ref].keys() if not x.strip()
@@ -815,13 +922,14 @@ class sonarBasics(object):
                             record = [
                                 chrom,
                                 str(pos),
+                                ".",
                                 ref,
-                                ref[0],
+                                "." if alt == " " else alt,
                                 ".",
                                 ".",
                                 ".",
                                 "GT",
-                            ] + ["0/1" if x in samples else "1/0" for x in all_samples]
+                            ] + ["0/1" if x in samples else "./." for x in all_samples]
                         handle.write("\t".join(record) + "\n")
             handle.close()
         else:
@@ -836,3 +944,103 @@ class sonarBasics(object):
         else:
             dictionary[key] = [dictionary[key], value]
         return dictionary
+
+    @staticmethod
+    def process_annotation(db, paired_list, progress=False):
+        """
+
+        Steps:
+            1. Read annotated txt file and .sonar_hash
+            2. Get alignment ID and source element ID
+            3. Get variant ID
+            4. Insert the 3 IDs into the database.
+
+        Input:
+            paired_list = (annotated_file, sonar_hash_file)
+
+        """
+        with sonarDBManager(db, readonly=False) as dbm:
+            for _tuple in tqdm(
+                paired_list,
+                desc="Importing data...",
+                total=len(paired_list),
+                unit="samples",
+                bar_format="{desc} {percentage:3.0f}% [{n_fmt}/{total_fmt}, {elapsed}<{remaining}, {rate_fmt}{postfix}]",
+                disable=progress,
+            ):
+                annotated_file, sonar_hash_file = _tuple
+                annotated_df = read_tsv_snpSift(annotated_file)
+                sonar_hash = read_sonar_hash(sonar_hash_file)
+
+                reference_accession = sonar_hash["reference"]
+                sample_dict = sonar_hash["sample_hashes"]
+                sample_variant_dict = sonar_hash["sample_variantTable"]
+
+                # Step 2
+                for sample_key in sample_dict:
+                    hash_value = sample_dict[sample_key]
+                    source_ids_list = dbm.get_element_ids(reference_accession, "source")
+
+                    if len(source_ids_list) > 1:
+                        logging.error("There is a duplicated element ID!!")
+                        sys.exit(1)
+                    else:
+                        source_element_id = source_ids_list[0]
+
+                    alnids = dbm.get_alignment_id(hash_value, source_element_id)
+
+                    if type(alnids) is list:
+                        logging.error(
+                            f"Hash value: {hash_value} is not found in the database!!"
+                        )
+                        sys.exit(1)
+                    else:
+                        alignment_id = alnids
+
+                    # Step 3
+                    sample_variant_list = sample_variant_dict[sample_key]
+
+                    # NOTE: MemoryError can be raised if a huge list is converted to a DataFrame
+                    _df = pd.DataFrame.from_dict(sample_variant_list)
+
+                    for row in _df.itertuples():
+                        variant_id = getattr(row, "variant_id")
+
+                        selected_var = dbm.get_variant_by_id(variant_id)
+                        ref = selected_var["ref"]
+                        # VCF: 1-based position
+                        start = selected_var["start"] + 1
+                        alt = "." if selected_var["alt"] == " " else selected_var["alt"]
+
+                        # Check if it exists in the annotated txt file.
+                        selected_row = annotated_df.loc[
+                            (annotated_df["POS"] == start)
+                            & (annotated_df["REF"] == ref)
+                            & (annotated_df["ALT"] == alt)
+                        ]
+                        # If it does not return any result or more than 1, we should raise an error because
+                        # the wrong annotated text file is being used or the database has already been modified.
+                        if len(selected_row) != 1:
+                            logging.error(
+                                "It appears that the wrong annotated text file is being used "
+                                "or the .sonar_hash file is not match to the input "
+                                "or the database has already been modified. Please double-check the file "
+                                "or database!"
+                            )
+                            logging.error(selected_var)
+                            logging.error(selected_row)
+                            sys.exit(1)
+
+                        # Find associated ID from annotationTable.
+                        effects = selected_row["EFFECT"].values[0]
+                        effects = effects.split(",")
+                        for effect in effects:
+                            if effect is None or effect == ".":
+                                effect = ""  # Default
+                            effect_id = dbm.get_annotation_ID_by_type(effect)
+
+                            # Step 4
+                            # Insert into the database
+                            dbm.insert_alignment2annotation(
+                                variant_id, alignment_id, effect_id
+                            )

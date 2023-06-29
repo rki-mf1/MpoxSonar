@@ -28,7 +28,8 @@ from .utils import insert_before_keyword
 sys.path.insert(1, "..")
 
 # COMPATIBILITY
-SUPPORTED_DB_VERSION = 1
+MAX_SUPPORTED_DB_VERSION = 2
+SUPPORTED_DB_VERSION = 1.2
 
 
 class sonarDBManager:
@@ -102,6 +103,8 @@ class sonarDBManager:
         self.db_database = self.__uri.path.replace("/", "")
 
         self.__properties = False
+        self.__source_references_df = None
+        self.__source_ref_dict = {}
         self.__references = {}
         self.__illegal_properties = {}
         self.__default_reference = False
@@ -217,7 +220,7 @@ class sonarDBManager:
 
     def get_db_version(self):
         """get database version"""
-        self.cursor.execute("SELECT `mpx`.DB_VERSION() AS version;")
+        self.cursor.execute(f"SELECT `{self.db_database}`.DB_VERSION() AS version;")
         return self.cursor.fetchone()["version"]
 
     def check_db_compatibility(self):
@@ -231,12 +234,12 @@ class sonarDBManager:
 
         """
         dbver = self.get_db_version()
-        if dbver != SUPPORTED_DB_VERSION:
+        if not dbver < MAX_SUPPORTED_DB_VERSION:
             sys.exit(
                 "compatibility error: the given database is not compatible with this version of sonar (database version: "
                 + str(dbver)
-                + "; supported database version: "
-                + str(SUPPORTED_DB_VERSION)
+                + "; supported database version < "
+                + str(MAX_SUPPORTED_DB_VERSION)
                 + ")"
             )
         return True
@@ -259,15 +262,45 @@ class sonarDBManager:
 
         """
         if self.__default_reference is False:
-            sql = "SELECT accession FROM mpx.reference WHERE standard = 1 LIMIT 1"
+            sql = f"SELECT accession FROM {self.db_database}.reference WHERE standard = 1 LIMIT 1"
             self.__default_reference = self.cursor.execute(sql).fetchone()["accession"]
         return self.__default_reference
+
+    @property
+    def sequence_references(self):
+        """
+        Return all original ref. seqs.
+
+        (i.e., only type that is equal to 'source'
+        from element table.)
+        id (elem_ID)  molecule_id    type    accession  ... strand                                           sequence  standard  parent_id
+         1   1   source  NC_063383.1  ...      0  ATTTTACTATTTTATTTAGTGTCTAGAAAAAAATGTGTGACCCACG...         1          0
+        Return
+            dict:
+                ref. sequence; {"1": "AAATTTT"}
+        """
+        if self.__source_ref_dict == {}:
+            all_elem_dict = self.get_molecule_ids()
+            _list = []
+            for key, value in all_elem_dict.items():
+                # get source seq. by molecule_id
+                _data = self.get_source(molecule_id=value)
+
+                #  pd.DataFrame.from_dict(dbm.get_elements(molecule_id = value))
+                _list.append(_data)
+            self.__source_references_df = pd.DataFrame(_list)
+            self.__source_ref_dict = dict(
+                zip(
+                    self.__source_references_df.id, self.__source_references_df.sequence
+                )
+            )
+        return self.__source_ref_dict
 
     @property
     def properties(self):
         """property storing propertie data as dict of dict whrere key is property name"""
         if self.__properties is False:
-            sql = "SELECT * FROM mpx.property;"
+            sql = f"SELECT * FROM {self.db_database}.property;"
             self.cursor.execute(sql)
             rows = self.cursor.fetchall()
             self.__properties = {} if not rows else {x["name"]: x for x in rows}
@@ -276,7 +309,7 @@ class sonarDBManager:
     @property
     def references(self):
         """
-        return all references
+        return all references.
 
         """
         if self.__references == {}:
@@ -356,12 +389,14 @@ class sonarDBManager:
         sql = "INSERT IGNORE INTO translation (id, codon, aa) VALUES(?, ?, ?);"
         self.cursor.execute(sql, [translation_table, codon, aa])
 
-    def add_property(self, name, datatype, querytype, description, standard=None):
+    def add_property(
+        self, name, datatype, querytype, description, target, standard=None
+    ):
         """
         adds a new property and returns the property id.
 
         >>> dbm = getfixture('init_writeable_dbm')
-        >>> id = dbm.add_property("NEW_PROP", "text", "text", "my new prop stores text information")
+        >>> id = dbm.add_property("NEW_PROP", "text", "text", "my new prop stores text information", "sample")
 
         """
         name = name.upper()
@@ -382,14 +417,16 @@ class sonarDBManager:
                 + " already exists in the given database."
             )
         try:
-            sql = "INSERT INTO mpx.property (name, datatype, querytype, description, standard) VALUES(?, ?, ?, ?, ?);"
-            self.cursor.execute(sql, [name, datatype, querytype, description, standard])
+            sql = f"INSERT INTO {self.db_database}.property (name, datatype, querytype, description, target, standard) VALUES(?, ?, ?, ?, ?, ?);"
+            self.cursor.execute(
+                sql, [name, datatype, querytype, description, target, standard]
+            )
             self.__properties = False
 
             pid = self.properties[name]["id"]
             if standard is not None:
                 sql = (
-                    "INSERT INTO mpx.sample2property (property_id, value_"
+                    f"INSERT INTO {self.db_database}.{self.properties[name]['target']}2property (property_id, value_"
                     + self.properties[name]["datatype"]
                     + ", sample_id) SELECT ?, ?, id FROM sample WHERE 1;"
                 )
@@ -455,7 +492,7 @@ class sonarDBManager:
         """
         try:
             sql = (
-                "INSERT INTO sample2property (sample_id, property_id, value_"
+                f"INSERT INTO {self.properties[property_name]['target']}2property (sample_id, property_id, value_"
                 + self.properties[property_name]["datatype"]
                 + ") VALUES(?, ?, ?)"
                 + " ON DUPLICATE KEY UPDATE value_"
@@ -619,6 +656,14 @@ class sonarDBManager:
         mid = self.cursor.fetchone()["id"]
         return mid
 
+    def iter_sample_names(self):
+        """
+        iterates over all sample names stored in the database.
+        """
+        sql = "SELECT name FROM sample WHERE 1;"
+        for row in self.cursor.execute(sql):
+            yield row["name"]
+
     def insert_element(
         self,
         molecule_id,
@@ -691,7 +736,16 @@ class sonarDBManager:
         return eid
 
     def insert_variant(
-        self, alignment_id, element_id, ref, alt, start, end, label, parent_id=""
+        self,
+        alignment_id,
+        element_id,
+        ref,
+        alt,
+        start,
+        end,
+        label,
+        frameshift,
+        parent_id="",
     ):
         """
         Inserts a variant if it does not exist in the database. Based on the type of the element the element id refers to,
@@ -701,12 +755,33 @@ class sonarDBManager:
         Returns the rowid of the inserted variant.
 
         >>> dbm = getfixture('init_writeable_dbm')
-        >>> rowid = dbm.insert_variant(1, 1, "A", "T", 0, 1, "A1T")
+        >>> rowid = dbm.insert_variant(1, 1, "A", "T", 0, 1, "A1T", "", 0)
 
         """
-        sql = "INSERT IGNORE INTO variant (id, element_id, start, end, ref, alt, label, parent_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?);"
+        sql = "INSERT IGNORE INTO variant (id, element_id, pre_ref, start, end, ref, alt, label, parent_id, frameshift) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+        try:
+            ref_dict = self.sequence_references
+            selected_ref_seq = ref_dict[int(element_id)]
+            pre_ref = selected_ref_seq[int(start) - 1]
+        except KeyError as e:
+            # for Amino Acid
+            logging.warn(e)
+            pre_ref = ""
+
         self.cursor.execute(
-            sql, [None, element_id, start, end, ref, alt, label, parent_id]
+            sql,
+            [
+                None,
+                element_id,
+                pre_ref,
+                start,
+                end,
+                ref,
+                alt,
+                label,
+                parent_id,
+                frameshift,
+            ],
         )
         vid = self.get_variant_id(element_id, start, end, ref, alt)
         sql = "INSERT IGNORE INTO alignment2variant (alignment_id, variant_id) VALUES(?, ?);"
@@ -855,6 +930,9 @@ class sonarDBManager:
 
         standard = 1  which is default reference
 
+        Return:
+            dict
+                {`molecule.accession`:`molecule.id`} -> {'NC_063383.1': 1}
         """
 
         if reference_accession:
@@ -1039,6 +1117,12 @@ class sonarDBManager:
         sql = "SELECT `element.sequence`, `element.symbol`, `element.id` FROM alignmentView WHERE `sample.name` =%s AND `reference.accession` =%s"
         self.cursor.execute(sql, [sample_name, reference_accession])
         return self.cursor.fetchall()
+
+    def get_variant_by_id(self, variant_id):
+        sql = "SELECT * FROM variant WHERE id = ?;"
+        self.cursor.execute(sql, [variant_id])
+        row = self.cursor.fetchone()
+        return None if row is None else row
 
     def get_variant_id(self, element_id, start, end, ref, alt):
         sql = "SELECT id FROM variant WHERE element_id = ? AND start = ? AND end = ? AND ref = ? AND alt = ?;"
@@ -1456,11 +1540,25 @@ class sonarDBManager:
                 + "'."
             )
 
-        return (
-            "SELECT `sample_id` AS id FROM sample2property WHERE "
-            + " AND ".join(conditions),
-            valueList,
-        )
+        if self.properties[name]["target"] == "sample":
+            sql = "SELECT sample_id AS id FROM sample2property WHERE " + " AND ".join(
+                conditions
+            )
+        elif self.properties[name]["target"] == "variant":
+            sql = (
+                "SELECT sample.id as 'sample.id' FROM variantView LEFT JOIN sequence ON sample.seqhash = sequence.seqhash WHERE \n"
+                + " AND ".join(conditions)
+            )
+        else:
+            sys.exit(
+                "database error: unkown target ("
+                + self.properties[name]["target"]
+                + ") stored for property "
+                + name
+                + "."
+            )
+
+        return (sql, valueList)
 
     def get_ref_ID_base_query_profile(  # noqa: 901
         self, *vars, reference_accession=None
@@ -2089,13 +2187,13 @@ class sonarDBManager:
             reference_accession = selected_accession_ref_list
             if self.debug:
                 print("---- new ref ----- ", reference_accession)
-
+        # find element id for NT
         genome_element_condition = [
             str(x) for x in self.get_element_ids(reference_accession, "source")
-        ]
+        ] + [str(x) for x in self.get_element_ids(reference_accession, "gene")]
         #
         if self.debug:
-            print("---- genome_element_condition ---", genome_element_condition)
+            print("genome_element_condition (source ID)", genome_element_condition)
         # if enable m `molecule.symbol`, "@"
         if len(genome_element_condition) == 1:
             genome_element_condition = "`element.id` = " + genome_element_condition[0]
@@ -2104,12 +2202,14 @@ class sonarDBManager:
             genome_element_condition = (
                 "`element.id` IN (" + ", ".join(genome_element_condition) + ")"
             )
-            m = ""
+            m = ""  # ' "molecule.symbol" || "@" || '
             # CurrentSolution: we add reference column instead
             # m = ' `molecule.symbol`, "@" , '
         if self.debug:
             # NOTE: genome_element_condition can also be considered as REF id.
-            logging.info(f"Slected Genome element in sql: {genome_element_condition}")
+            logging.info(
+                f"Selected Genome element in database: {genome_element_condition}"
+            )
 
         if not showNX:
             nn = ' AND `variant.alt` != "N" '
@@ -2124,7 +2224,7 @@ class sonarDBManager:
         ]
         # fix all reference query when some refs they have no cds tag.
         all_refID_nocds = [str(x["id"]) for x in self.get_ele_ofref_bynoCDS()]
-        all_ref_nocds = [str(x["accession"]) for x in self.get_ele_ofref_bynoCDS()]
+        # all_ref_nocds = [str(x["accession"]) for x in self.get_ele_ofref_bynoCDS()]
         if not reference_accession:
             cds_element_condition.extend(all_refID_nocds)
 
@@ -2140,7 +2240,7 @@ class sonarDBManager:
             cds_element_condition = ""
 
         if self.debug:
-            print("----c ds_element_condition ---", cds_element_condition)
+            print("----cds_element_condition ---", cds_element_condition)
         # standard query
         if format == "csv" or format == "tsv":
 
@@ -2208,10 +2308,16 @@ class sonarDBManager:
             # since some samples didn't return AA mutation., so we can use LEFT JOIN to NT.
             # EDIT: 1. remove unnecessay 'WHERE IN SAMPLE_IDs'
             _2_final_sql = (
-                " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE "
-                + " FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
+                " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, "
+                + "nt_profile._profile AS NUC_PROFILE, "
+                + "aa_profile._profile AS AA_PROFILE, "
+                + "nt_profile._frameshifts AS FRAMESHIFTS "
+                + " FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat( "
                 + m
-                + " `variant.label`) AS _profile, `variant.id`"
+                + " `variant.label`) AS _profile, group_concat(CASE WHEN "
+                + m
+                + " `variant.frameshift` = 1 THEN `variant.label` END) AS _frameshifts "
+                + " ,`variant.id` "
                 + "FROM variantView WHERE `sample.id` IN ("
                 + selected_sample_ids
                 + ") AND "
@@ -2236,7 +2342,8 @@ class sonarDBManager:
                 + " WHERE  nt_profile.`sample.id` = `sample`.id "
             )
             """
-                        2_final_sql = (
+            backup....
+            2_final_sql = (
                 " SELECT name AS `sample.name`, nt_profile.reference_accession AS REFERENCE_ACCESSION, nt_profile._profile AS NUC_PROFILE, aa_profile._profile AS AA_PROFILE "
                 + " FROM ( SELECT  `sample.id`, `reference.accession` AS reference_accession, group_concat("
                 + m
@@ -2271,6 +2378,7 @@ class sonarDBManager:
 
             self.cursor.execute(_2_final_sql)
             _2_rows = self.cursor.fetchall()
+            print("Done")
             if len(_1_rows) != len(_2_rows):
                 # logging.warning("Detects something suspicious in matching process.")
                 logging.warning(
@@ -2278,35 +2386,64 @@ class sonarDBManager:
                     % (len(_1_rows), len(_2_rows))
                 )
                 logging.warning(
-                    "This can happen when the ID of a sample does not represent in fasta or in meta info. or there is no NT/AA profile in a sample."
+                    "This can happen when the ID of a sample does not represent in fasta/meta info. or there is no NT/AA profile in a sample."
                     + " It can also be the reason of one sample is aligning with more than one reference."
                 )
-
+            # if self.debug:
+            #    print(_2_rows[0:4])
+            # if self.debug:
+            #    print(_1_rows[0:2])
             # print(set([ x['sample.name'] for x in _1_rows ]) ^ set([ x['name'] for x in _2_rows ]))
             # To combine:
             # We update list of dict (update on result from query #2)
             # merge all results
-            # _1_rows.extend(
-            #    list(
-            #        map(
-            #            lambda x, y: x.update(
-            #                {
-            #                    key: value
-            #                    for key, value in y.items()
-            #                    if (key == "NUC_PROFILE") or (key == "AA_PROFILE")
-            #                }
-            #            )
-            #            if x.get("sample.name") == y.get("sample.name")
-            #            else None,
-            #            _1_rows,
-            #            _2_rows,
-            #        )
-            #    )
-            # )
+            """
+            _1_rows.extend(
+                list(
+                    map(
+                    lambda x, y: x.update(
+                            {
+                                key: value
+                                for key, value in y.items()
+                                if (key == "NUC_PROFILE") or (key == "AA_PROFILE")
+                            }
+                        )
+                        if x.get("sample.name") == y.get("sample.name")
+                        else None,
+                        _1_rows,
+                        _2_rows,
+                    )
+                )
+            )
+            _1_rows = list(filter(None, _1_rows))
+            """
 
-            # _1_rows = list(filter(None, _1_rows))
+            joined_dict = []
+
+            for key in range(len(_1_rows)):
+                sample = _1_rows[key]["sample.name"]
+                _1_rows[key]["REFERENCE_ACCESSION"] = "None"
+                _1_rows[key]["NUC_PROFILE"] = "None"
+                _1_rows[key]["AA_PROFILE"] = "None"
+                _1_rows[key]["FRAMESHIFTS"] = "None"
+                found = False
+                for d2 in _2_rows:
+                    if sample == d2["sample.name"]:
+                        # print(sample)
+                        _1_rows[key]["REFERENCE_ACCESSION"] = d2["REFERENCE_ACCESSION"]
+                        _1_rows[key]["NUC_PROFILE"] = d2["NUC_PROFILE"]
+                        _1_rows[key]["AA_PROFILE"] = d2["AA_PROFILE"]
+                        _1_rows[key]["FRAMESHIFTS"] = d2["FRAMESHIFTS"]
+                        joined_dict.append({**_1_rows[key]})
+                        found = True
+                    # joined_dict.append({**_1_rows[key], **d2})
+                if not found:
+                    joined_dict.append({**_1_rows[key]})
+
+            _1_rows = joined_dict
 
             # ------ alternative solution convert to df
+            """
             # NOTE: not good idea for million rows.
             df_1 = pd.DataFrame(_1_rows)
             df_1.sort_values(by=["sample.name"], inplace=True)
@@ -2321,16 +2458,7 @@ class sonarDBManager:
                 # logging.debug(df_2.columns)
                 # logging.debug(df_2["sample.name"])
 
-            """
-            merge_df = pd.merge(
-                df_1,
-                df_2,
-                how="inner",
-                left_on=["sample.name"],
-                right_on=["sample.name"],
-            )
 
-            """
             # [tmp solution.]- we remove unused column TODO: fix this in the future.
             # backwards compatibility
             if df_1.columns.isin(
@@ -2366,6 +2494,9 @@ class sonarDBManager:
             ] = "-"
             merge_df.fillna("-", inplace=True)
             _1_rows = merge_df.to_dict("records")
+            """
+            # ----------------------------------------------------------------------
+
             # filter column
             if output_column != "all":
                 _1_rows = [
@@ -2388,13 +2519,13 @@ class sonarDBManager:
             )
         elif format == "vcf":
             sql = (
-                "SELECT `element.id`,  `element.type`, `molecule.accession`, `variant.start`, `variant.ref`, `variant.alt`, `variant.label`, `sample.name` as samples FROM variantView WHERE `sample.id` IN ("
+                "SELECT `element.id`, `element.accession`, `molecule.accession`, `variant.id`, `variant.start`, `variant.ref`, `variant.alt`, `variant.label`, `sample.name` as samples , `sample.seqhash` as seqhash FROM variantView WHERE `sample.id` IN ("
                 + sample_selection_sql
                 + ") AND "
                 + genome_element_condition
                 + nn
                 + tg
-                + "GROUP BY `molecule.accession`, `variant.start`, `variant.ref`, `variant.alt` ORDER BY `molecule.accession`, `variant.start`"
+                + "GROUP BY  `molecule.accession`, `variant.start`, `variant.ref`, `variant.alt`, samples , seqhash ORDER BY `molecule.accession`, `variant.start`"
             )
         else:
             sys.exit("error: '" + format + "' is not a valid output format")
@@ -2436,10 +2567,10 @@ class sonarDBManager:
     # Utils.
     def get_db_size(self, decimal_places=2):
         # Execute query with fixed DB schema
-        sql = "SELECT  table_schema , \
+        sql = f"SELECT  table_schema , \
                 (data_length + index_length) `size` \
                 FROM information_schema.TABLES \
-                WHERE table_schema = 'mpx';"
+                WHERE table_schema = '{self.db_database}';"
 
         self.cursor.execute(sql)
         size = self.cursor.fetchone()["size"]
@@ -2451,6 +2582,7 @@ class sonarDBManager:
 
     @staticmethod
     def upgrade_db(dbfile):
+        # FIXME: this code is still built for sqlite3
         try:
             with sqlite3.connect(dbfile) as con:
                 cur = con.cursor()
@@ -2494,3 +2626,107 @@ class sonarDBManager:
                 logging.info("Success: Database upgrade was successfully completed")
             else:
                 logging.error("Error: Upgrade was not completed")
+
+    def get_all_NT_variants(self):
+        """
+        GET only NT variants.
+        """
+        sql = """ SELECT *
+                FROM
+                    (
+                        SELECT element.id AS elem_ID ,element.`accession`
+                        FROM element
+                        WHERE element.type = "source"
+                    ) AS ref_table
+                JOIN variant ON ref_table.elem_ID = variant.element_ID;"""
+        self.cursor.execute(sql)
+        rows = self.cursor.fetchall()
+        return rows
+
+    def update_elementID_variantTable(self, id, pre_ref=""):
+        sql = "UPDATE variant SET pre_ref = %s WHERE id = %s;"
+        # print(sql)
+        self.cursor.execute(sql, (pre_ref, id))
+
+    def get_map_element_NT(self):
+        """
+        This function is used to get all NTs that maps with element symbol.
+
+        Return examples;
+        element.id;element.start;element.end;element.symbol;vaiant_id;label;start;end;element_parent_id;accession
+        23;834;1575;OPG001;87025948;T835N;834;835;22;NC_063383.1
+        23;834;1575;OPG001;87025949;C836N;835;836;22;NC_063383.1
+        23;834;1575;OPG001;99854237;C836T;835;836;22;NC_063383.1
+
+        """
+        sql = f"""
+        SELECT  `element.id`, `element.start`, `element.end`, `element.symbol`,
+        variant.id AS variant_id , variant.label, variant.start, variant.end,
+        variant.element_id AS element_parent_id, T2.accession
+        FROM
+            (SELECT
+                element.molecule_id AS "element.molecule_id",
+                element.id AS "element.id",
+                element.accession AS "element.accession",
+                element.symbol AS "element.symbol",
+                element.standard AS "element.standard",
+                element.type AS "element.type",
+                element.start AS "element.start",
+                element.end AS "element.end",
+                element.parent_id AS "element.parent_id"
+            FROM
+                `{self.db_database}`.element
+            WHERE element.`type` = "gene" ) AS T1
+
+        JOIN `{self.db_database}`.variant ON 	`{self.db_database}`.variant.start >= T1.`element.start` AND
+                `{self.db_database}`.variant.end <= T1.`element.end` AND
+                `{self.db_database}`.variant.element_id = T1.`element.parent_id`
+        JOIN 	( SELECT molecule.id, reference.accession
+                FROM  `{self.db_database}`.molecule
+                JOIN `{self.db_database}`.reference ON molecule.reference_id = reference.id)
+                AS T2 ON T1.`element.molecule_id` = T2.id;
+        """
+
+        self.cursor.execute(sql)
+        rows = self.cursor.fetchall()
+        return rows
+
+    def update_table_column(
+        self, table_name, column_name, new_value, condition_column, condition_value
+    ):
+        # Construct the SQL query
+        sql = (
+            f"UPDATE {table_name} SET {column_name} = %s WHERE {condition_column} = %s;"
+        )
+
+        # Execute the query
+        try:
+            self.cursor.execute(sql, (new_value, condition_value))
+        except Exception as e:
+            logging.error(sql + f"{new_value}, {condition_value}")
+            logging.error(e)
+            raise
+        # sql = "UPDATE variant SET pre_ref = %s WHERE id = %s;"
+        # print(sql)
+        # self.cursor.execute(sql, (new_value, condition_value))
+
+    def get_annotation_ID_by_type(self, effect):
+        """
+        Get the annotation type id by effect type
+
+        Return id
+        """
+        try:
+            sql = "SELECT id FROM annotation_type WHERE seq_ontology = ?"
+            self.cursor.execute(sql, [effect])
+            _id = self.cursor.fetchone()["id"]
+        except Exception as e:
+            logging.error(e)
+            logging.error("Effect keyword: " + effect)
+            logging.error(self.cursor.fetchall())
+            raise
+        return _id
+
+    def insert_alignment2annotation(self, variant_id, alignment_id, annotation_id):
+        sql = "INSERT IGNORE INTO alignment2annotation (variant_id, alignment_id, annotation_id) VALUES(?,?,?);"
+        self.cursor.execute(sql, [variant_id, alignment_id, annotation_id])

@@ -13,11 +13,11 @@ import re
 import shutil
 import sys
 import traceback
-from typing_extensions import deprecated
 
 from mpire import WorkerPool
 import pandas as pd
 from tqdm import tqdm
+from typing_extensions import deprecated
 
 from .align import sonarAligner
 from .config import TMP_CACHE
@@ -125,6 +125,7 @@ class sonarCache:
         self._samplefiles_to_profile = set()
         self._refs = set()
         self._lifts = set()
+        self._cds = set()
         self._tt = set()
 
     def __enter__(self):
@@ -181,24 +182,8 @@ class sonarCache:
                 return True
         return False
 
-    # Do we need this function?
-    # def sample_collision(self, key, datadict):
-    #    if sonarCache.read_pickle(key) != datadict:
-    #        return True
-    #    return False
-
-    # Do we need this function?
-    # def write_smk_config(self):
-    #    data = {
-    #        "debug": self.debug,
-    #        "sample_dir": self.sample_dir,
-    #        "seq_dir": self.seq_dir,
-    #        "algn_dir": self.algn_dir,
-    #        "var_dir": self.var_dir,
-    #    }
-
-    #    with open(self.smk_config, "w") as handle:
-    #        yaml.dump(data, handle)
+    def get_cds_fname(self, refid):
+        return os.path.join(self.ref_dir, str(refid) + ".lcds")
 
     def get_seq_fname(self, seqhash):
         fn = self.slugify(seqhash)
@@ -242,6 +227,7 @@ class sonarCache:
         algnfile,
         varfile,
         liftfile,
+        cdsfile,
         properties,
     ):
         """
@@ -265,6 +251,7 @@ class sonarCache:
             "algn_file": algnfile,
             "var_file": varfile,
             "lift_file": liftfile,
+            "cds_file": cdsfile,
             "properties": properties,
         }
         fname = self.get_sample_fname(name)  # full path
@@ -324,6 +311,37 @@ class sonarCache:
         if translation_id not in self._tt:
             self.write_pickle(fname, dbm.get_translation_dict(translation_id))
             self._tt.add(translation_id)
+        return fname
+
+    def cache_cds(self, refid, refmol_acc):
+        """
+                The function takes in a reference id, a reference molecule accession number,
+                and a reference sequence. It then checks to see if the reference molecule accession number is in the set of molecules that
+                have been cached. If it is not, it iterates through all of the coding sequences for that molecule and creates a
+                dataframe for each one.
+        .
+                It then saves the dataframe to a pickle file and adds the reference molecule accession number to
+                the set of molecules that have been cached.
+                It then returns the name of the pickle file
+        """
+        fname = self.get_cds_fname(refid)
+        if refmol_acc not in self._cds:
+            rows = []
+            cols = ["elemid", "pos", "end"]
+            for cds in self.iter_cds(refmol_acc):
+                elemid = cds["id"]
+                coords = []
+                for rng in cds["ranges"]:
+                    coords.extend(list(rng))
+                for coord in coords:
+                    rows.append([elemid, coord, 0])
+                # rows[-1][2] = 1
+                # print(rows)
+                df = pd.DataFrame.from_records(rows, columns=cols, coerce_float=False)
+                df.to_pickle(fname)
+                if self.debug:
+                    df.to_csv(fname + ".csv")
+            self._cds.add(refmol_acc)
         return fname
 
     def cache_lift(self, refid, refmol_acc, sequence):
@@ -455,7 +473,7 @@ class sonarCache:
             except Exception:
                 None
         if self.debug:
-            logging.INFO(
+            logging.info(
                 f"Using default (given) reference mol accession: {self.default_refmol_acc}"
             )
         return self.default_refmol_acc
@@ -618,6 +636,7 @@ class sonarCache:
             data["liftfile"] = self.cache_lift(
                 refseq_id, data["refmol"], self.get_refseq(data["refmol"])
             )
+            data["cdsfile"] = self.cache_cds(refseq_id, data["refmol"])
             data["algnfile"] = self.get_algn_fname(
                 data["seqhash"] + "@" + self.get_refhash(data["refmol"])
             )
@@ -634,6 +653,7 @@ class sonarCache:
             data["reffile"] = None
             data["ttfile"] = None
             data["liftfile"] = None
+            data["cdsfile"] = None
             data["algnfile"] = None
             data["varfile"] = None
         return data
@@ -681,6 +701,7 @@ class sonarCache:
                                     vardat[1],
                                     vardat[2],
                                     vardat[5],
+                                    frameshift=vardat[6],
                                 )
                             if line != "//":
                                 sys.exit(
@@ -703,10 +724,13 @@ class sonarCache:
                     print("\n During insert:")
                     pp.pprint(sample_data)
                     sys.exit("Unknown import error")
+        logging.warn("Sonar will delete a sample with empty alignment.")
+        logging.info("Error logs are kept under the given cache directory.")
         if list_fail_samples:
             logging.info(
                 f"Start paranoid alignment on {len(list_fail_samples)} sample."
             )
+            # start process.
             # self.paranoid_align_multi(list_fail_samples, threads)
         count_sample = count_sample - len(list_fail_samples)
         logging.info("Total sample insert: " + str(count_sample))
@@ -754,7 +778,7 @@ class sonarCache:
         The current version of paranoid test.
         link to import_cached_samples
 
-        
+
         return dict.
         """
         try:
@@ -765,14 +789,15 @@ class sonarCache:
             )
             seq = list(refseqs[sample_data["sourceid"]])
         prefix = ""
-
+        gaps = {".", " "}
         sample_name = sample_data["name"]
         for vardata in dbm.iter_dna_variants(sample_name, sample_data["sourceid"]):
-            if vardata["variant.alt"] == " ":
+            if vardata["variant.alt"] in gaps:
                 for i in range(vardata["variant.start"], vardata["variant.end"]):
                     seq[i] = ""
             elif vardata["variant.alt"] == ".":
-                seq[vardata["variant.start"]] = ""
+                for i in range(vardata["variant.start"], vardata["variant.end"]):
+                    seq[i] = ""
             elif vardata["variant.start"] >= 0:
                 seq[vardata["variant.start"]] = vardata["variant.alt"]
             else:
@@ -786,8 +811,7 @@ class sonarCache:
         if seq != orig_seq:
             self.log("[Paranoid-test] Fail sample:" + sample_name)
             logging.warn(
-                f"Fail in sanity check: This {sample_name} sample will not be inserted to the database...,"
-                + "keeps an error log under the given cache directory."
+                f"Failure in sanity check: This {sample_name} sample will not be inserted to the database."
             )
             if not os.path.exists(self.error_dir):
                 os.makedirs(self.error_dir)
@@ -822,7 +846,6 @@ class sonarCache:
                 seqhash=sample_data["seqhash"]
             )
             if len(_return_ali_id) == 0:
-                logging.warn("Sonar will delete a sample with empty alignment")
                 dbm.delete_samples(sample_name)
                 dbm.delete_seqhash(sample_data["seqhash"])
 
@@ -834,11 +857,11 @@ class sonarCache:
             }
         else:
             return {}
-    
+
     @deprecated
     def paranoid_test(self, refseqs, sample_data, dbm):  # noqa: C901
         """link to import_cached_samples
-        depreceted 
+        depreceted
         The purpose of pranoid test is try to
         :Parameters:
 

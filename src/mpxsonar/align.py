@@ -145,7 +145,10 @@ class sonarAligner(object):
         refseq = self.read_seqcache(data["ref_file"])
         _, __, cigar = self.align(qryseq, refseq)
         nuc_vars = [
-            x for x in self.extract_vars_from_cigar(qryseq, refseq, cigar, elemid)
+            x
+            for x in self.extract_vars_from_cigar(
+                qryseq, refseq, cigar, elemid, data["cds_file"]
+            )
         ]
 
         vars = "\n".join(["\t".join(x) for x in nuc_vars])
@@ -172,6 +175,8 @@ class sonarAligner(object):
                 handle.write(vars + "//")
         return True
 
+    """
+    backup code for the old version
     def extract_vars(self, qry_seq, ref_seq, elemid):
         query_length = len(qry_seq)
         if query_length != len(ref_seq):
@@ -219,6 +224,7 @@ class sonarAligner(object):
                 pos = i - offset + 1
                 yield ref, str(pos - 1), str(pos), alt, elemid, ref + str(pos) + alt
             i += 1
+    """
 
     def translate(self, seq, tt):
         aa = []
@@ -235,7 +241,7 @@ class sonarAligner(object):
             tt = pickle.load(handle, encoding="bytes")
         for nuc_var in nuc_vars:
             if nuc_var[3] == ".":
-                continue
+                continue  # ignore uncovered terminal regions
             for i in range(int(nuc_var[1]), int(nuc_var[2])):
                 alt = "-" if nuc_var[3] == " " else nuc_var[3]
                 df.loc[df["nucPos1"] == i, "alt1"] = alt
@@ -262,7 +268,7 @@ class sonarAligner(object):
                 label = row["aa"] + str(pos) + row["altAa"]
                 yield row["aa"], str(pos - 1), str(pos), row["altAa"], str(
                     row["elemid"]
-                ), label
+                ), label, "0"
 
             # deletions
             for index, row in (
@@ -284,7 +290,7 @@ class sonarAligner(object):
                         label = "del:" + str(start + 1) + "-" + str(end)
                     yield prev_row["aa"], str(start), str(end), " ", str(
                         prev_row["elemid"]
-                    ), label
+                    ), label, "0"
                     prev_row = row
 
         if prev_row is not None:
@@ -296,9 +302,16 @@ class sonarAligner(object):
                 label = "del:" + str(start + 1) + "-" + str(end)
             yield prev_row["aa"], str(start), str(end), " ", str(
                 prev_row["elemid"]
-            ), label
+            ), label, "0"
 
-    def extract_vars_from_cigar(self, qryseq, refseq, cigar, elemid):  # noqa: C901
+    def extract_vars_from_cigar(
+        self, qryseq, refseq, cigar, elemid, cds_file
+    ):  # noqa: C901
+        # get annotation for frameshift detection
+        cds_df = pd.read_pickle(cds_file)
+        cds_set = set(cds_df[cds_df["end"] == 0])
+
+        # extract
         refpos = 0
         qrypos = 0
         qrylen = len(qryseq)
@@ -324,6 +337,7 @@ class sonarAligner(object):
                             alt,
                             elemid,
                             ref + str(refpos + 1) + alt,
+                            "0",
                         )
                     )
                     refpos += 1
@@ -333,11 +347,18 @@ class sonarAligner(object):
                 if (
                     refpos == 0 and prefix is False
                 ) or qrypos == qrylen:  # deletion at sequence terminus
-                    for x in range(varlen):
-                        vars.append(
-                            (refseq[x], str(refpos), str(refpos + 1), ".", elemid, " ")
+                    vars.append(
+                        (
+                            refseq[refpos : refpos + varlen],
+                            str(refpos),
+                            str(refpos + varlen),
+                            ".",
+                            elemid,
+                            "del:" + str(refpos + 1) + "-" + str(refpos + varlen),
+                            "0",
                         )
-                        refpos += 1
+                    )
+                    refpos += varlen
                 elif varlen == 1:  # 1bp deletion
                     vars.append(
                         (
@@ -347,10 +368,13 @@ class sonarAligner(object):
                             " ",
                             elemid,
                             "del:" + str(refpos + 1),
+                            self.detect_frameshifts(
+                                refpos, refpos + 1, " ", cds_df, cds_set
+                            ),
                         )
                     )
                     refpos += 1
-                else:  # multi-bp deletion
+                else:  # multi-bp inner deletion
                     vars.append(
                         (
                             refseq[refpos : refpos + varlen],
@@ -359,18 +383,25 @@ class sonarAligner(object):
                             " ",
                             elemid,
                             "del:" + str(refpos + 1) + "-" + str(refpos + varlen),
+                            self.detect_frameshifts(
+                                refpos, refpos + varlen, " ", cds_df, cds_set
+                            ),
                         )
                     )
                     refpos += varlen
             # insertion handling
             elif vartype == "I":
-                if refpos == 0:  # to consider insertion berfore sequence start
+                if refpos == 0:  # to consider insertion before sequence start
                     ref = "."
                     alt = qryseq[:varlen]
                     prefix = True
+                    fs = "0"
                 else:
                     ref = refseq[refpos - 1]
                     alt = qryseq[qrypos - 1 : qrypos + varlen]
+                    fs = self.detect_frameshifts(
+                        refpos - 1, refpos, alt, cds_df, cds_set
+                    )
                 vars.append(
                     (
                         ref,
@@ -379,17 +410,34 @@ class sonarAligner(object):
                         alt,
                         elemid,
                         ref + str(refpos) + alt,
+                        fs,
                     )
                 )
                 qrypos += varlen
             # unknown
             else:
                 sys.exit(
-                    "error: covSonar cannot interpret '"
-                    + vartype
-                    + "' in cigar string."
+                    "error: Sonar cannot interpret '" + vartype + "' in cigar string."
                 )
         return vars
+
+    def detect_frameshifts(self, start, end, alt, cds_df, coding_sites_set):
+        # handling deletions
+        if alt == " " or alt == "":
+            coords = set(range(start, end))
+            cds_df["gap"] = cds_df.apply(lambda x: 1 if x.pos in coords else 0, axis=1)
+            groups = cds_df.groupby(
+                [cds_df["elemid"], (cds_df["gap"].shift() != cds_df["gap"]).cumsum()]
+            ).agg({"gap": sum})
+            for _, row in groups.iterrows():
+                if row["gap"] % 3 != 0:
+                    print(f"D Found frameshifts: {start} {end}")
+                    return "1"
+        # handling insertions
+        elif (len(alt) - 1) % 3 > 0 and start in coding_sites_set:
+            print(f"I Found frameshifts: {start} {end}")
+            return "1"
+        return "0"
 
     # deprecated var extractor from aligned sequence strings
     def extract_vars_dep(self, qry_seq, ref_seq, elemid):  # noqa: C901

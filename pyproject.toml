@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "mpxsonar"
-version = "0.5.4"
+version = "0.5.7"
 description = "A database-driven system for handling genomic sequences and screening genomic profiles."
-authors = ["Stephan Fuchs <FuchsS@rki.de>", "Kunaphas Kongkitimanon <KongkitimanonK@rki.de>", "Matthew Huska <HuskaM@rki.de>"]
+authors = ["Stephan Fuchs <FuchsS@rki.de>", "Kunaphas Kongkitimanon <KongkitimanonK@hpi.de>", "Matthew Huska <HuskaM@rki.de>"]
 license = "GPL3"
 readme = "README.md"
 homepage = "https://github.com/rki-mf1/MpoxSonar"

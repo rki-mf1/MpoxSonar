@@ -85,6 +85,7 @@ In MpoxSonar, the table below shows the several commands that can be called.
 | add-ref   | Add a reference genome to the database              |
 | delete-ref   | Delete a reference genome in database       |
 | list-ref   | View all references in the database                        |
+| import-ann   | Import annotated variant from the SnpEff tool     |
 
 Each tool provides a help page that can be accessed with the `-h` option.
 
@@ -370,11 +371,78 @@ sonar restore -r NC_063383.1 --sample-file accessions.txt > restored.fasta
 sonar delete --sample ID_1 ID_2 ID_3
 ```
 
+### 2.9 Import annotation result from SnpEff tool (import-ann)
+Note 🕯️: please see "Annotation with SNPEff" section for how to prepare input.
+
+To import a single annotation sample, you need to specify the sonar hash and the annotation input file.
+```sh
+sonar import-ann --sonar-hash ON585031.1.sonar_hash --ann-input ON585031.1.tsv
+```
+
+If you have multiple annotation files to import, you can create a sample list file (e.g., sample-list.txt) that contains the paths to the annotation input files and their corresponding sonar hashes.
+```sh
+sonar import-ann --sample-file  sample-list.txt
+```
+
+Example of sample-list.txt file.
+```
+/mnt/data/ON585031.1.tsv	/mnt/data//ON585031.1.sonar_hash
+/mnt/data/OQ427120.1.tsv	/mnt/data//OQ427120.1.sonar_hash
+/mnt/data/ON755244.1.tsv	/mnt/data//ON755244.1.sonar_hash
+```
 ---------------------------------
 
-## Extra features.
+## Additional features.
 
-### NCBI Downloader.
+### 1. Annotation with SNPEff
+This section provides guidance on preparing the input files for annotation by using SnpEff, which can then import the results into the sonar database using the "import-ann" command.
+
+#### -- Install SNPEff and custom database
+
+Download and installing SnpEff: it pretty easy, take a look at the [download page](https://pcingola.github.io/SnpEff/download/).
+
+Configure SnpEff: Open the snpEff.config file, which is located in your SnpEff installation directory. Inside the file, you will find various configuration options. Look for the data.dir parameter and specify the path where you want to store the SnpEff databases.
+
+For example, if you want to store the databases in the /mnt/data/ directory,
+```sh
+# example
+data.dir = /mnt/data/
+```
+Obtain the reference genome: This command fetches the required data from the NCBI and generates the necessary database files for annotation.
+```sh
+./snpEff/scripts/buildDbNcbi.sh <genome accesion number>
+# example
+./snpEff/scripts/buildDbNcbi.sh NC_063383.1
+```
+
+#### -- Annotate varinat & Prepare Input for MpoxSonar ('import-ann' commaad)
+Here's an overview of the steps involved in preparing the input and then import back to database.
+
+Prepare the variant input file: We use match command to generate VCF format  along with the associated `.sonar_hash`
+```sh
+sonar match -r ON563414.3 --sample ON585031.1  --format vcf -o ON585031.1.vcf
+```
+
+Run SnpEff annotation: Execute the SnpEff annotation command, specifying the built SnpEff database and the variant input file. SnpEff will process the variants and annotate them with functional information based on the reference genome and available annotations.
+```sh
+java -jar snpEff/snpEff.jar -v -stats ON585031.1.html ON563414.3 ON585031.1.vcf > ON585031.1.ann.vcf
+```
+the variant input file ON585031.1.vcf, and saves the annotated output in VCF format as ON585031.1.ann.vcf.
+
+Extract the annotation output: After running SnpEff annotation, we will obtain an annotation output file in TSV format.
+```sh
+java -jar snpEff/SnpSift.jar extractFields -s "," -e "."  ON585031.1.ann.vcf  "CHROM" "POS" "REF" "ALT" "ANN[*].EFFECT" "ANN[*].IMPACT" > ON585031.1.tsv
+```
+This command extracts specific fields such as chromosome, position, reference allele, alternate allele, effect, and impact from the annotated VCF file and saves them as a TSV file named ON585031.1.tsv.
+
+Import annotation data into Sonar: Once you have completed above steps and obtained the SnpEff annotation output file (e.g., ON585031.1.tsv in the provided example), you can use the Sonar "import-ann" command to import this annotation data into Sonar database.
+```sh
+sonar import-ann --sonar-hash ON585031.1.sonar_hash --ann-input ON585031.1.tsv
+```
+
+Visit https://pcingola.github.io/SnpEff/se_running/ for more information.
+
+### 2. NCBI Downloader.
 We provide the simple script to download MonkeyPox data from NCBI server.
 
 In ".env file, please setup "NCBI API key".
