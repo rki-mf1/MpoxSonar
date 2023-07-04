@@ -2519,7 +2519,7 @@ class sonarDBManager:
             )
         elif format == "vcf":
             sql = (
-                "SELECT `element.id`, `element.accession`, `molecule.accession`, `variant.id`, `variant.start`, `variant.ref`, `variant.alt`, `variant.label`, `sample.name` as samples , `sample.seqhash` as seqhash FROM variantView WHERE `sample.id` IN ("
+                "SELECT `element.id`, `element.accession`, `molecule.accession`, `variant.id`, `variant.start`,`variant.pre_ref`, `variant.ref`, `variant.alt`, `variant.label`, `sample.name` as samples , `sample.seqhash` as seqhash FROM variantView WHERE `sample.id` IN ("
                 + sample_selection_sql
                 + ") AND "
                 + genome_element_condition

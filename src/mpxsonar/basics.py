@@ -794,7 +794,19 @@ class sonarBasics(object):
         """
         This function is used to output vcf file and hash.sonar file
 
-        POS position in VCF format: 1-based position
+        Note:
+            * One ref. per vcf
+            * POS position in VCF format: 1-based position
+            * Deletion? In the VCF file, the REF allele represents the reference sequence
+            before the deletion, and the ALT allele represents the deleted sequence
+            example:suppose we have
+                Ref: atCga C is the reference base
+                1:   atGga C base is changed to G
+                2:   at-ga C base is deleted w.r.t. the ref.
+            #CHROM  POS     ID      REF     ALT
+            1       3       .       C       G
+            1       2       .       TC      T
+
         """
         records = collections.OrderedDict()
         all_samples = set()
@@ -803,11 +815,12 @@ class sonarBasics(object):
 
         for row in cursor.fetchall():  # sonarBasics.iter_formatted_match(cursor):
             # print(row)
-            element_id, variant_id, chrom, pos, ref, alt, samples, seqhash = (
+            element_id, variant_id, chrom, pos, pre_ref, ref, alt, samples, seqhash = (
                 row["element.id"],
                 row["variant.id"],
                 row["molecule.accession"],
                 row["variant.start"],
+                row["variant.pre_ref"],
                 row["variant.ref"],
                 row["variant.alt"],
                 row["samples"],
@@ -821,11 +834,18 @@ class sonarBasics(object):
                 records[chrom] = collections.OrderedDict()
             if pos not in records[chrom]:
                 records[chrom][pos] = {}
+
             if ref not in records[chrom][pos]:
                 records[chrom][pos][ref] = {}
+
+            if pre_ref not in records[chrom][pos]:
+                records[chrom][pos]["pre_ref"] = pre_ref
+
             if alt not in records[chrom][pos][ref]:
                 records[chrom][pos][ref][alt] = []
             records[chrom][pos][ref][alt].append(samples)  # set(samples.split("\t"))
+
+            # print(records)
             all_samples.update(samples.split("\t"))
 
             # handle the variant and sample.
@@ -883,6 +903,8 @@ class sonarBasics(object):
             for chrom in records:
                 for pos in records[chrom]:
                     for ref in records[chrom][pos]:
+                        if ref == "pre_ref":  # skip pre_ref key
+                            continue
                         # snps and inserts (combined output)
                         alts = [x for x in records[chrom][pos][ref].keys() if x.strip()]
                         if alts:
@@ -918,13 +940,16 @@ class sonarBasics(object):
                         for alt in [
                             x for x in records[chrom][pos][ref].keys() if not x.strip()
                         ]:
+                            pre_ref = records[chrom][pos]["pre_ref"]
                             samples = records[chrom][pos][ref][alt]
                             record = [
                                 chrom,
-                                str(pos),
+                                str(
+                                    pos - 1
+                                ),  # -1 to the position for DEL, NOTE: be careful for 0-1=-1
                                 ".",
-                                ref,
-                                "." if alt == " " else alt,
+                                (pre_ref + ref),
+                                (pre_ref) if alt == " " else alt,  # changed form '.'
                                 ".",
                                 ".",
                                 ".",
@@ -1007,10 +1032,24 @@ class sonarBasics(object):
                         variant_id = getattr(row, "variant_id")
 
                         selected_var = dbm.get_variant_by_id(variant_id)
-                        ref = selected_var["ref"]
+                        # ref = selected_var["ref"]
                         # VCF: 1-based position
-                        start = selected_var["start"] + 1
-                        alt = "." if selected_var["alt"] == " " else selected_var["alt"]
+                        # For DEL, we dont +1
+                        ref = (
+                            (selected_var["pre_ref"] + selected_var["ref"])
+                            if selected_var["alt"] == " "
+                            else selected_var["ref"]
+                        )
+                        start = (
+                            selected_var["start"]
+                            if selected_var["alt"] == " "
+                            else selected_var["start"] + 1
+                        )
+                        alt = (
+                            selected_var["pre_ref"]
+                            if selected_var["alt"] == " "
+                            else selected_var["alt"]
+                        )
 
                         # Check if it exists in the annotated txt file.
                         selected_row = annotated_df.loc[
@@ -1027,8 +1066,12 @@ class sonarBasics(object):
                                 "or the database has already been modified. Please double-check the file "
                                 "or database!"
                             )
-                            logging.error(selected_var)
-                            logging.error(selected_row)
+                            logging.debug("Get VAR:")
+                            logging.debug(selected_var)
+                            logging.debug("Use for searching a ROW:")
+                            logging.debug(f"start:{start} , ref:{ref} , alt:{alt}")
+                            logging.debug("Get DF:")
+                            print(f"{annotated_df[annotated_df['POS'] == start]}")
                             sys.exit(1)
 
                         # Find associated ID from annotationTable.

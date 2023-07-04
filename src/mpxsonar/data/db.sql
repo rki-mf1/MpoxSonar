@@ -243,6 +243,7 @@ SELECT
 	element.standard AS "element.standard",
 	element.type AS "element.type",
 	variant.id AS "variant.id",
+	variant.pre_ref AS "variant.pre_ref",
 	variant.ref AS "variant.ref",
 	variant.start AS "variant.start",
 	variant.end AS "variant.end",

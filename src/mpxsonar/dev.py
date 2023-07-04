@@ -1,3 +1,5 @@
+import logging
+
 from tqdm import tqdm
 
 from mpxsonar.dbm import sonarDBManager
@@ -28,8 +30,15 @@ def fix_pre_ref(db, debug):
             selected_ref_seq = ref_dict[each_variant["elem_ID"]]
             # ref_df.loc[ref_df['id'] == each_variant["elem_ID"]]["sequence"].values[0]
             # print(selected_ref_seq[10])
-            # it was already 0-based position, so to get the before postion ,-1
-            before_char = selected_ref_seq[each_variant["start"] - 1]
+            # it was already 0-based position, so to get the before postion (-1)
+            try:
+                if each_variant["start"] - 1 < 0:
+                    before_char = ""
+                else:
+                    before_char = selected_ref_seq[each_variant["start"] - 1]
+            except Exception as e:
+                logging.error(e)
+                raise
             dbm.update_elementID_variantTable(each_variant["id"], before_char)
 
 
