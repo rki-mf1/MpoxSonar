@@ -8,8 +8,8 @@ TODO:
 	* Some fields need to be rechecked or edited in the future to keep them optimised.
 	* More strategies for reducing database size.
 */
-CREATE DATABASE IF NOT EXISTS `mpx_2` CHARACTER SET utf8 COLLATE utf8_general_ci;
-USE `mpx_2`;
+CREATE DATABASE IF NOT EXISTS `mpx` CHARACTER SET utf8 COLLATE utf8_general_ci;
+USE `mpx`;
 -- structure for table mpx.translation
 CREATE TABLE IF NOT EXISTS `translation` (
 	id INTEGER NOT NULL,
@@ -329,7 +329,20 @@ LEFT JOIN molecule ON element.molecule_id = molecule.id
 LEFT JOIN reference ON molecule.reference_id = reference.id;
 
 -- Annotation Type Table
-CREATE TABLE `annotation_type` (
+CREATE TABLE IF NOT EXISTS `alignment2annotation` (
+	`variant_id` INT(11) NOT NULL,
+	`alignment_id` INT(11) NOT NULL,
+	`annotation_id` TINYINT(4) NOT NULL,
+	PRIMARY KEY (`variant_id`, `alignment_id`, `annotation_id`) USING BTREE,
+	INDEX `alignment_id` (`alignment_id`) USING BTREE,
+	INDEX `annotation_id` (`annotation_id`) USING BTREE,
+	INDEX `variant_id` (`variant_id`) USING BTREE,
+	CONSTRAINT `alignment_id` FOREIGN KEY (`alignment_id`) REFERENCES `alignment` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+	CONSTRAINT `annotation_id` FOREIGN KEY (`annotation_id`) REFERENCES `annotation_type` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+	CONSTRAINT `variant_id` FOREIGN KEY (`variant_id`) REFERENCES `variant` (`id`) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS `annotation_type` (
 	`id` TINYINT(4) NOT NULL AUTO_INCREMENT,
 	`seq_ontology` VARCHAR(50) NULL DEFAULT NULL COLLATE 'utf8mb3_general_ci',
 	`region` VARCHAR(50) NULL DEFAULT NULL COLLATE 'utf8mb3_general_ci',
