@@ -17,13 +17,17 @@ def read_tsv_snpSift(file_path: str) -> pd.DataFrame:
     """
     Process the TSV file from SnpSift, deduplicate the ANN[*].EFFECT column,
     remove values in ANN[*].IMPACT column, and split the records
-    to have one effect per row. Returns the modified DataFrame.
+    to have one effect per row.
+    Returns the modified DataFrame.
 
     Parameters:
         file_path (str): Path to the input TSV file.
 
     Returns:
         pd.DataFrame: Modified DataFrame with deduplicated ANN[*].EFFECT column and one effect per row.
+
+    Note:
+
     """
     try:
         # Read the TSV file into a DataFrame

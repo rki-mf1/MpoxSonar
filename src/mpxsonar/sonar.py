@@ -16,6 +16,7 @@ from .dbm import sonarDBManager
 from .dev import fix_annotation
 from .dev import fix_element_id_NT
 from .dev import fix_pre_ref
+from .dev import test_align_mafft
 from .utils import open_file
 
 # from .cache import sonarCache  # noqa: F401
@@ -822,6 +823,8 @@ def main(args):  # noqa: C901
             fix_pre_ref(args.db, debug=args.debug)
         elif args.up_ele_nt:
             fix_element_id_NT(args.db, debug=args.debug)
+        else:
+            test_align_mafft()
         logging.info("***Done...***")
     # Finished successfully
     return 0

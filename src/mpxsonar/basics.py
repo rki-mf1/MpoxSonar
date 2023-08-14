@@ -492,11 +492,13 @@ class sonarBasics(object):
                         )
                     for line in handle:
                         pbar.update(len(line))
-                        fields = line.strip("\r\n").split("\t")
+                        fields = line.strip("\r\n").split(",")
+
                         sample = fields[cols["sample"]]
                         for x in cols:
                             if x == "sample":
                                 continue
+
                             properties[sample][x] = fields[cols[x]]
 
         # setup cache
@@ -525,7 +527,7 @@ class sonarBasics(object):
                 disable=not progress,
             ) as pbar:
                 for _ in pool.imap_unordered(
-                    aligner.process_cached_sample, cache._samplefiles_to_profile
+                    aligner.process_cached_sample_v1, cache._samplefiles_to_profile
                 ):
                     pbar.update(1)
             # insert into DB

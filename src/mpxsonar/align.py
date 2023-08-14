@@ -58,7 +58,7 @@ class sonarAligner(object):
     # gapopen=16, gapextend=4
     # gapopen=10, gapextend=1
     def align(self, qryseq, refseq, gapopen=16, gapextend=4):
-        """ """
+        """Method for parasail run"""
         result = parasail.sg_trace(
             qryseq, refseq, gapopen, gapextend, parasail.blosum62
         )
@@ -68,8 +68,16 @@ class sonarAligner(object):
             result.get_cigar().decode.decode(),
         )
 
+    def align_MAFFT():
+        pass
+
     def align_global(self, qry, ref, gapopen=16, gapextend=4):
-        """ """
+        """Method for handling emboss stretcher run
+
+        Return:
+
+
+        """
         try:
             cline = StretcherCommandline(
                 asequence=qry,
@@ -86,7 +94,7 @@ class sonarAligner(object):
             s1 = stdout.find("\n") + 1
             # find the start of second sequence position
             e = stdout[1:].find(">") + 1
-            # find the '\n' of the second sequence  to get seq2
+            # find the '\n' of the second sequence to get seq2
             s2 = stdout[e:].find("\n") + e
             qry = stdout[s1:e].replace("\n", "")
             ref = stdout[s2:].replace("\n", "")
@@ -115,8 +123,58 @@ class sonarAligner(object):
 
         return qry, ref
 
-    def process_cached_sample(self, fname):
+    def process_cached_sample_v1(self, fname):
         """
+        Work with: Emboss Stretcher, Mafft
+        This function takes a sample file and processes it.
+        create var file with NT and AA mutations
+        """
+
+        with open(fname, "rb") as handle:
+            data = pickle.load(handle, encoding="bytes")
+
+        if data["var_file"] is None:
+            return True
+        elif os.path.isfile(data["var_file"]):
+            with open(data["var_file"], "r") as handle:
+                for line in handle:
+                    pass
+            if line == "//":
+                return True
+
+        sourceid = str(data["sourceid"])
+        self.log("data:" + str(data))
+        alignment = self.align(data["seq_file"], data["ref_file"])
+        # self.cal_seq_length(alignment[0][0:20], msg="qry")
+        # self.cal_seq_length(alignment[1][0:20], msg="ref")
+        nuc_vars = [x for x in self.extract_vars(*alignment, sourceid)]
+        vars = "\n".join(["\t".join(x) for x in nuc_vars])
+        if nuc_vars:
+            # create AA mutation
+            aa_vars = "\n".join(
+                [
+                    "\t".join(x)
+                    for x in self.lift_vars(
+                        nuc_vars, data["lift_file"], data["tt_file"]
+                    )
+                ]
+            )
+            if aa_vars:
+                # concatinate to the same file of NT variants
+                vars += "\n" + aa_vars
+            vars += "\n"
+        try:
+            with open(data["var_file"], "w") as handle:
+                handle.write(vars + "//")
+        except OSError:
+            os.makedirs(os.path.dirname(data["var_file"]), exist_ok=True)
+            with open(data["var_file"], "w") as handle:
+                handle.write(vars + "//")
+        return True
+
+    def process_cached_sample_v2(self, fname):
+        """
+        Work with: Cigar format
         This function takes a sample file and processes it.
         create var file with NT and AA mutations
         """
@@ -175,9 +233,10 @@ class sonarAligner(object):
                 handle.write(vars + "//")
         return True
 
-    """
-    backup code for the old version
     def extract_vars(self, qry_seq, ref_seq, elemid):
+        """
+        backup code for the old version [Emboss Stretcher]
+        """
         query_length = len(qry_seq)
         if query_length != len(ref_seq):
             sys.exit("error: sequences differ in length")
@@ -224,7 +283,6 @@ class sonarAligner(object):
                 pos = i - offset + 1
                 yield ref, str(pos - 1), str(pos), alt, elemid, ref + str(pos) + alt
             i += 1
-    """
 
     def translate(self, seq, tt):
         aa = []

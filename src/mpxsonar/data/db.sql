@@ -8,8 +8,8 @@ TODO:
 	* Some fields need to be rechecked or edited in the future to keep them optimised.
 	* More strategies for reducing database size.
 */
-CREATE DATABASE IF NOT EXISTS `mpx` CHARACTER SET utf8 COLLATE utf8_general_ci;
-USE `mpx`;
+CREATE DATABASE IF NOT EXISTS `mpx_3_testmafft` CHARACTER SET utf8 COLLATE utf8_general_ci;
+USE `mpx_3_testmafft`;
 -- structure for table mpx.translation
 CREATE TABLE IF NOT EXISTS `translation` (
 	id INTEGER NOT NULL,

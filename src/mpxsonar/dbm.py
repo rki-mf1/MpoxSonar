@@ -763,9 +763,9 @@ class sonarDBManager:
             ref_dict = self.sequence_references
             selected_ref_seq = ref_dict[int(element_id)]
             pre_ref = selected_ref_seq[int(start) - 1]
-        except KeyError as e:
-            # for Amino Acid
-            logging.warn(e)
+        except KeyError:
+            # KeyError for a case of Amino Acid, we don't stroe these information at this moment.
+            # logging.warn(e)
             pre_ref = ""
 
         self.cursor.execute(

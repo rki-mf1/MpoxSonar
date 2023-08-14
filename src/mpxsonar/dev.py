@@ -1,5 +1,6 @@
 import logging
 
+from Bio.Align.Applications import MafftCommandline
 from tqdm import tqdm
 
 from mpxsonar.dbm import sonarDBManager
@@ -54,3 +55,23 @@ def fix_element_id_NT(db, debug):
                 condition_column="id",
                 condition_value=variant_id,
             )
+
+
+def test_align_mafft():
+    logging.info("Bye-bye Darling")
+    mafft_exe = "mafft"
+    mafft_cline = MafftCommandline(
+        mafft_exe, input="/mnt/c/works/mafft/OQ331005.1.partial.fasta", auto=True
+    )
+    print(mafft_cline)
+    stdout, stderr = mafft_cline()
+
+    # find the fist position of '\n' to get seq1
+    s1 = stdout.find("\n") + 1
+    # find the start of second sequence position
+    e = stdout[1:].find(">") + 1
+    # find the '\n' of the second sequence to get seq2
+    s2 = stdout[e:].find("\n") + e
+    qry = stdout[s1:e].replace("\n", "").upper()
+    ref = stdout[s2:].replace("\n", "").upper()
+    return qry, ref

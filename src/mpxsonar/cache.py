@@ -588,7 +588,9 @@ class sonarCache:
 
                     # check alignment
                     data["algnid"] = dbm.get_alignment_id(data["seqhash"], refseq_id)
+                    # write file (.seq, ref)
                     data = self.assign_data(data, seqhash, refseq_id, dbm)
+                    print(data)
                     del data["sequence"]
                     self.cache_sample(**data)
         if failed_list:
