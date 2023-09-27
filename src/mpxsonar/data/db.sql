@@ -8,8 +8,8 @@ TODO:
 	* Some fields need to be rechecked or edited in the future to keep them optimised.
 	* More strategies for reducing database size.
 */
-CREATE DATABASE IF NOT EXISTS `mpx_3_testmafft` CHARACTER SET utf8 COLLATE utf8_general_ci;
-USE `mpx_3_testmafft`;
+CREATE DATABASE IF NOT EXISTS `mpx_4` CHARACTER SET utf8 COLLATE utf8_general_ci;
+USE `mpx_4`;
 -- structure for table mpx.translation
 CREATE TABLE IF NOT EXISTS `translation` (
 	id INTEGER NOT NULL,
@@ -132,15 +132,17 @@ CREATE TABLE IF NOT EXISTS `variant` (
 	id INTEGER AUTO_INCREMENT,
 	element_id INTEGER NOT NULL,
 	`pre_ref` VARCHAR(1) NULL DEFAULT NULL COLLATE 'utf8mb3_general_ci',
-	ref VARCHAR(200) NOT NULL,
-	alt VARCHAR(200) NOT NULL,
+	ref TEXT NOT NULL,
+	alt TEXT NOT NULL,
 	`start` INTEGER NOT NULL,
 	`end` INTEGER NOT NULL,
 	parent_id INTEGER,
 	label TEXT NOT NULL,
 	frameshift INTEGER NOT NULL,
 	PRIMARY KEY(id),
-	UNIQUE(element_id, `start`, `end`, ref, alt),
+	-- # Change VARCHAR to TEXT, if we choose VARCAHR(1000)
+	-- # Then (errno: 150 "Foreign key constraint is incorrectly formed")
+	-- UNIQUE(element_id, `start`, `end`, ref, alt),
 	INDEX `idx_variant_element_frameshift` (`frameshift`) USING BTREE,
 	INDEX `idx_variant_element_start` (`start`) USING BTREE,
 	INDEX `idx_variant_element_pre_ref` (`pre_ref`) USING BTREE,
@@ -172,10 +174,10 @@ CREATE TABLE IF NOT EXISTS `alignment2variant` (
 	FOREIGN KEY(variant_id) REFERENCES variant(id) ON DELETE CASCADE
 );
 -- structure for table mpx.lineages
-CREATE TABLE IF NOT EXISTS `lineages`(
-	`lineage` VARCHAR(100) NOT NULL,
-	`sublineage` TEXT, PRIMARY KEY(lineage)
-);
+-- CREATE TABLE IF NOT EXISTS `lineages`(
+--	`lineage` VARCHAR(100) NOT NULL,
+--	`sublineage` TEXT, PRIMARY KEY(lineage)
+-- );
 -- Function Table
 CREATE FUNCTION IF NOT EXISTS DB_VERSION() RETURNS FLOAT RETURN 1.2;
 -- VIEW Table
@@ -328,20 +330,6 @@ LEFT JOIN element ON alignment.element_id = element.id
 LEFT JOIN molecule ON element.molecule_id = molecule.id
 LEFT JOIN reference ON molecule.reference_id = reference.id;
 
--- Annotation Type Table
-CREATE TABLE IF NOT EXISTS `alignment2annotation` (
-	`variant_id` INT(11) NOT NULL,
-	`alignment_id` INT(11) NOT NULL,
-	`annotation_id` TINYINT(4) NOT NULL,
-	PRIMARY KEY (`variant_id`, `alignment_id`, `annotation_id`) USING BTREE,
-	INDEX `alignment_id` (`alignment_id`) USING BTREE,
-	INDEX `annotation_id` (`annotation_id`) USING BTREE,
-	INDEX `variant_id` (`variant_id`) USING BTREE,
-	CONSTRAINT `alignment_id` FOREIGN KEY (`alignment_id`) REFERENCES `alignment` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT `annotation_id` FOREIGN KEY (`annotation_id`) REFERENCES `annotation_type` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
-	CONSTRAINT `variant_id` FOREIGN KEY (`variant_id`) REFERENCES `variant` (`id`) ON UPDATE CASCADE ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS `annotation_type` (
 	`id` TINYINT(4) NOT NULL AUTO_INCREMENT,
 	`seq_ontology` VARCHAR(50) NULL DEFAULT NULL COLLATE 'utf8mb3_general_ci',
@@ -397,3 +385,18 @@ INSERT INTO `annotation_type` (`id`, `seq_ontology`, `region`) VALUES (46, 'non_
 INSERT INTO `annotation_type` (`id`, `seq_ontology`, `region`) VALUES (47, 'non_coding_transcript_exon_variant', 'EXON');
 INSERT INTO `annotation_type` (`id`, `seq_ontology`, `region`) VALUES (48, 'custom', 'NONE');
 INSERT INTO `annotation_type` (`id`, `seq_ontology`, `region`) VALUES (49, '""', 'NONE');
+
+
+-- Annotation Type Table
+CREATE TABLE IF NOT EXISTS `alignment2annotation` (
+	`variant_id` INT(11) NOT NULL,
+	`alignment_id` INT(11) NOT NULL,
+	`annotation_id` TINYINT(4) NOT NULL,
+	PRIMARY KEY (`variant_id`, `alignment_id`, `annotation_id`) USING BTREE,
+	INDEX `alignment_id` (`alignment_id`) USING BTREE,
+	INDEX `annotation_id` (`annotation_id`) USING BTREE,
+	INDEX `variant_id` (`variant_id`) USING BTREE,
+	CONSTRAINT `alignment_id` FOREIGN KEY (`alignment_id`) REFERENCES `alignment` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+	CONSTRAINT `annotation_id` FOREIGN KEY (`annotation_id`) REFERENCES `annotation_type` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+	CONSTRAINT `variant_id` FOREIGN KEY (`variant_id`) REFERENCES `variant` (`id`) ON UPDATE CASCADE ON DELETE CASCADE
+);

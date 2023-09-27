@@ -7,365 +7,102 @@ import argparse
 import os
 import sys
 from textwrap import fill
+from typing import Optional
 
 from tabulate import tabulate
 
-from . import logging
+from mpxsonar.dbm import sonarDBManager
 from .basics import sonarBasics
-from .dbm import sonarDBManager
 from .dev import fix_annotation
 from .dev import fix_element_id_NT
 from .dev import fix_pre_ref
 from .dev import test_align_mafft
+from .logging import LoggingConfigurator
 from .utils import open_file
 
 # from .cache import sonarCache  # noqa: F401
 
+VERSION = sonarBasics.get_version()
 
-class arg_namespace(object):
+# Initialize logger
+LOGGER = LoggingConfigurator.get_logger()
+
+
+class args_namespace(object):
+    """An empty class for storing command-line arguments as object attributes."""
+
     pass
 
 
-def parse_args(args):
+def parse_args(args=None):
     """
-    setting and handling command line arguments
-    """
+    Parse command-line arguments using argparse.ArgumentParser.
 
-    VERSION = sonarBasics.get_version()
+    Args:
+        args (list): List of command-line arguments. Default is None.
+        namespace (argparse.Namespace): An existing namespace to populate with parsed arguments. Default is None.
+
+    Returns:
+        argparse.Namespace: Namespace containing parsed command-line arguments.
+    """
 
     # preparations
-    user_namespace = arg_namespace()
-    parser = argparse.ArgumentParser(prog="sonar", description="MPoxSonar " + VERSION)
-    subparsers = parser.add_subparsers(
-        help="detect, store, and screen for mutations in genomic sequences"
+    user_namespace = args_namespace()
+    parser = argparse.ArgumentParser(
+        prog="sonar",
+        description=f"MpoxSonar {VERSION}: Integrated Genome Information System for Pathogen Surveillance ",
     )
-    subparsers.dest = "tool"
-    subparsers.required = True
 
-    # parser components
-    # parser component: db input
     general_parser = argparse.ArgumentParser(add_help=False)
-    general_parser.add_argument(
-        "--db", metavar="FILE", help="sonar database to use", type=str
-    )
     general_parser.add_argument(
         "--debug",
         help="activate debugging mode showing all queries and  debug info on screen",
         action="store_true",
     )
 
-    # parser component: output
-    output_parser = argparse.ArgumentParser(add_help=False)
-    output_parser.add_argument(
-        "--out-column",
-        help="select output columns to the output file (support csv and tsv)",
-        type=str,
-        default="all",
-    )
-    output_parser.add_argument(
-        "-o",
-        "--out",
-        metavar="FILE",
-        help="write output to file",
-        type=str,
-        default=None,
-    )
+    # parser components
+    # Create parent parsers for common arguments and options for the command-line interface
+    database_parser = create_parser_database()
+    output_parser = create_parser_output()
+    sample_parser = create_parser_sample()
+    property_parser = create_parser_property()
+    reference_parser = create_parser_reference()
+    thread_parser = create_parser_thread()
 
-    # parser component: sample input
-    sample_parser = argparse.ArgumentParser(add_help=False)
-    sample_parser.add_argument(
-        "--sample",
-        metavar="STR",
-        help="sample accession(s) to consider ",
-        type=str,
-        nargs="+",
-        default=[],
-    )
-    sample_parser.add_argument(
-        "--sample-file",
-        metavar="FILE",
-        help="file containing sample accession(s) to consider (one per line)",
-        type=str,
-        nargs="+",
-        default=[],
-    )
+    # Create all subparsers for the command-line interface
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # parser component: property name
-    prop_parser = argparse.ArgumentParser(add_help=False)
-    prop_parser.add_argument(
-        "--name", metavar="STR", help="name of sample property", type=str, required=True
-    )
-
-    # parser component: reference
-    ref_parser = argparse.ArgumentParser(add_help=False)
-    ref_parser.add_argument(
-        "-r",
-        "--reference",
-        metavar="STR",
-        help="reference accession",
-        type=str,
-        default=None,
-        required=True,
-    )
-
-    # parser component: threads
-    thread_parser = argparse.ArgumentParser(add_help=False)
-    thread_parser.add_argument(
-        "-t",
-        "--threads",
-        metavar="INT",
-        help="number of threads to use (default: 1)",
-        type=int,
-        default=1,
-    )
-
-    # main parser
     # setup parser
-    parser_setup = subparsers.add_parser(
-        "setup", parents=[general_parser], help="Setup a new database."
-    )
-    parser_setup.add_argument(
-        "-a",
-        "--auto-create",
-        help="Auto create important properties",
-        action="store_true",
-    )
-    parser_setup.add_argument(
-        "--gbk",
-        metavar="FILE",
-        help="genbank file of the reference genome (default MN908947.3 is used as reference)",
-        type=str,
-        default=None,
-    )
-
+    subparsers, _ = create_subparser_setup(subparsers, reference_parser)
     # import parser
-    parser_import = subparsers.add_parser(
-        "import",
-        parents=[general_parser, thread_parser, ref_parser],
-        help="Import genome sequences and sample information to the database.",
-    )
-    parser_import.add_argument(
-        "--fasta",
-        help="fasta file containing genome sequences to import",
-        type=str,
-        nargs="+",
-        default=None,
-    )
-    parser_import.add_argument(
-        "--tsv",
-        metavar="TSV_FILE",
-        help="tab-delimited file containing sample properties to import",
-        type=str,
-        nargs="+",
-        default=[],
-    )
-    parser_import.add_argument(
-        "--csv",
-        metavar="CSV_FILE",
-        help="comma-delimited file containing sample properties to import",
-        type=str,
-        nargs="+",
-        default=[],
-    )
-    parser_import.add_argument(
-        "--cols",
-        help="define column names for sample properties (if different from property name)",
-        type=str,
-        nargs="+",
-        default=[],
-    )
-    parser_import.add_argument(
-        "--no-autodetect",
-        help="do not auto-detect of columns for sample properties based on property names",
-        action="store_true",
-    )
-    parser_import.add_argument(
-        "--no-update",
-        help="skip samples already existing in the database",
-        action="store_true",
-    )
-    parser_import.add_argument(
-        "--cache",
-        metavar="DIR",
-        help="directory for chaching data (default: a temporary directory is created)",
-        type=str,
-        default=None,
-    )
-    parser_import_g1 = parser.add_mutually_exclusive_group()
-    parser_import_g1.add_argument(
-        "--no-progress",
-        "-p",
-        help="don't show progress bars while importing",
-        action="store_true",
-    )
-    # View Reference.
-    subparsers.add_parser(
-        "list-ref",
-        parents=[general_parser],
-        help="List all references in database.",
-    )
-    # Add Reference.
-    ref_add_parser = subparsers.add_parser(
-        "add-ref",
-        parents=[general_parser],
-        help="Add reference sequence to the database.",
-    )
-    ref_add_parser.add_argument(
-        "--gbk",
-        metavar="FILE",
-        help="genbank file of a reference genome",
-        type=str,
-        required=True,
-    )
-    # Delete Reference.
-    subparsers.add_parser(
-        "delete-ref",
-        parents=[general_parser],
-        help="Delete a reference in database.",
+    subparsers, _ = create_subparser_import(subparsers, thread_parser, reference_parser)
+
+    # Reference parser
+    subparsers, _ = create_subparser_list_reference(subparsers)
+    subparsers, _ = create_subparser_add_reference(subparsers, general_parser)
+    subparsers, _ = create_subparser_delete_reference(
+        subparsers, general_parser, reference_parser
     )
 
-    # view-prop parser
-    subparsers.add_parser(
-        "list-prop",
-        parents=[general_parser],
-        help="View sample properties added to the database.",
+    subparsers, _ = create_subparser_list_prop(subparsers, database_parser)
+    subparsers, _ = create_subparser_add_prop(
+        subparsers, database_parser, property_parser
+    )
+    subparsers, _ = create_subparser_delete_prop(
+        subparsers, database_parser, property_parser
     )
 
-    # add-prop parser
-    parser_addprops = subparsers.add_parser(
-        "add-prop",
-        parents=[general_parser, prop_parser],
-        help="Add a sample property to the database.",
-    )
-    parser_addprops.add_argument(
-        "--descr",
-        metavar="STR",
-        help="description of the new property",
-        type=str,
-        required=True,
-    )
-    parser_addprops.add_argument(
-        "--dtype",
-        metavar="STR",
-        help="data type of the new property",
-        type=str,
-        choices=["integer", "float", "text", "date", "zip"],
-        required=True,
-    )
-    parser_addprops.add_argument(
-        "--qtype",
-        metavar="STR",
-        help="query type of the new property",
-        type=str,
-        choices=["numeric", "float", "date", "text", "zip"],
-        default=None,
-    )
-    parser_addprops.add_argument(
-        "--default",
-        metavar="VAR",
-        help="default value of the new property (none by default)",
-        type=str,
-        default=None,
-    )
-    parser_addprops.add_argument(
-        "--subject",
-        metavar="VAR",
-        help="choose between sample or variant property (by default: sample)",
-        choices=["sample", "variant"],
-        default="sample",
+    subparsers, _ = create_subparser_delete(subparsers, database_parser, sample_parser)
+
+    subparsers, subparser_match = create_subparser_match(
+        subparsers, database_parser, reference_parser, sample_parser, output_parser
     )
 
-    # delete-prop parser
-    parser_delprops = subparsers.add_parser(
-        "delete-prop",
-        parents=[general_parser, prop_parser],
-        help="Delete a sample property from the database.",
+    subparsers, _ = create_subparser_restore(
+        subparsers, database_parser, sample_parser, output_parser
     )
-    parser_delprops.add_argument(
-        "--force", help="force property to be deleted", action="store_true"
-    )
-
-    # match parser
-    parser_match = subparsers.add_parser(
-        "match",
-        parents=[sample_parser, output_parser, general_parser],
-        help="get mutations profiles for given accessions.",
-    )
-    parser_match.add_argument(
-        "-r",
-        "--reference",
-        metavar="STR",
-        help="reference accession",
-        type=str,
-        default=None,
-    )
-    parser_match.add_argument(
-        "--profile",
-        "-p",
-        metavar="STR",
-        help="match genomes sharing the given mutation profile",
-        type=str,
-        action="append",
-        nargs="+",
-        default=[],
-    )
-    parser_match.add_argument(
-        "--showNX",
-        help="include any variant character in the result (X for AA and N for NT)",
-        action="store_true",
-    )
-
-    parser_match_format = parser_match.add_mutually_exclusive_group()
-    parser_match_format.add_argument(
-        "--count", help="count instead of listing matching genomes", action="store_true"
-    )
-    parser_match_format.add_argument(
-        "--format",
-        help="output format (default: tsv)",
-        choices=["csv", "tsv", "vcf"],
-        default="tsv",
-    )
-    parser_match.add_argument(
-        "--with-sublineage",
-        metavar="STR",
-        help="recursively get all sublineages from a given lineage. ",
-        type=str,
-        default=None,
-    )
-
-    # delete parser
-    parser_delete = subparsers.add_parser(
-        "delete",
-        parents=[sample_parser, general_parser],
-        help="delete one or more samples from the database.",
-    )
-    parser_delete.add_argument(
-        "--aligned",
-        help="ise aligned form (deletions indicated by - and insertions by lower-case letters)",
-        action="store_true",
-    )
-
-    # restore parser
-    parser_restore = subparsers.add_parser(
-        "restore",
-        parents=[ref_parser, sample_parser, general_parser],
-        help="restore sequence(s) from the database.",
-    )
-    parser_restore.add_argument(
-        "--aligned",
-        help="use pairwise aligned form (deletions indicated by - and insertions by lower-case letters)",
-        action="store_true",
-    )
-
-    # info parser
-    subparsers.add_parser(
-        "info", parents=[general_parser], help="show software and database info"
-    )
-
-    # optimize parser
-    subparsers.add_parser(
-        "optimize", parents=[general_parser], help="optimizes the database."
-    )
+    subparsers, _ = create_subparser_info(subparsers, database_parser)
+    subparsers, _ = create_subparser_optimize(subparsers, database_parser)
 
     # dev parser
     parser_dev = subparsers.add_parser(
@@ -394,19 +131,12 @@ def parse_args(args):
     #    help="upgrade a database to the latest version",
     # )
 
-    # update-lineage-info parser
-    # subparsers.add_parser(
-    #    "update-lineage-info",
-    #    parents=[general_parser],
-    #    help="download latest lineage information",
-    # )
-
     # version parser
     parser.add_argument(
         "-v",
         "--version",
         action="version",
-        version="[Parasail aligner] MPoxSonar " + VERSION,
+        version="[Multi aligners] MpoxSonar " + VERSION,
         help="Show program's version number and exit.",
     )
 
@@ -438,33 +168,581 @@ def parse_args(args):
         default=[],
     )
     # register known arguments
-    pargs = parser.parse_known_args(args=args, namespace=user_namespace)
-    # register dynamic arguments
-    # register additonal arguments from database-specific sample property names when matching genomes
-    if pargs[0].tool == "match" and hasattr(pargs[0], "db"):
-        with sonarDBManager(pargs[0].db, readonly=True, debug=pargs[0].debug) as dbm:
-            for prop in dbm.properties.values():
-                # if prop["datatype"] == "integer":
-                #    t = int
-                # elif prop["datatype"] == "float":
-                #    t = float
-                # else:
-                #    t = str
-                if pargs[0].tool == "match":
-                    parser_match.add_argument(
-                        "--" + prop["name"],
-                        # type=t,
-                        nargs="+",
-                        # default=argparse.SUPPRESS,
-                    )
+    # add database-specific properties to match subparser
+    user_namespace = args_namespace()
+    known_args, _ = parser.parse_known_args(args=args, namespace=user_namespace)
+    if is_match_selected(known_args):
+        LoggingConfigurator(debug=known_args.debug)
+        with sonarDBManager(known_args.db, readonly=True) as db_manager:
+            for property in db_manager.properties.values():
+                subparser_match.add_argument(
+                    "--" + property["name"], type=str, nargs="+"
+                )
 
-    # return
     return parser.parse_args(args=args, namespace=user_namespace)
 
 
-def check_file(fname):
+def is_match_selected(namespace: Optional[argparse.Namespace] = None) -> bool:
+    """
+    Checks if the 'match' command is selected and the 'db' attribute is present in the arguments.
+
+    Args:
+        namespace: Namespace object for storing argument values (default: None)
+
+    Returns:
+        True if 'match' command is selected and 'db' attribute is present, False otherwise
+    """
+    # Check if the 'match' command is selected and the 'db' attribute is present
+    match_selected = namespace.command == "match" and hasattr(namespace, "db")
+
+    return match_selected
+
+
+def check_file(fname, exit_on_fail=True):
+    """
+    Check if a given file path exists.
+
+    Args:
+        fname (string): The name and path to an existing file.
+        exit_on_fail (boolean): Whether to exit the script if the file doesn't exist. Default is True.
+
+    Returns:
+        True if the file exists, False otherwise.
+    """
     if not os.path.isfile(fname):
-        sys.exit("input error: " + fname + " is not a valid file.")
+        if exit_on_fail:
+            sys.exit("Error: The file '" + fname + "' does not exist.")
+        return False
+    return True
+
+
+def create_parser_database() -> argparse.ArgumentParser:
+    """Creates a 'database' parent parser with common arguments and options for the command-line interface.
+
+    Returns:
+        argparse.ArgumentParser: The created 'database' parent parser.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--db", metavar="FILE", help="path to Sonar database", type=str, required=True
+    )
+    return parser
+
+
+def create_parser_output() -> argparse.ArgumentParser:
+    """Creates an 'output' parent parser with common arguments and options for the command-line interface.
+
+    Returns:
+        argparse.ArgumentParser: The created 'output' parent parser.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "-o",
+        "--out",
+        metavar="FILE",
+        help="write output file (existing files will be overwritten!)",
+        type=str,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--out-column",
+        help="select output columns to the output file (support csv and tsv)",
+        type=str,
+        default="all",
+    )
+    return parser
+
+
+def create_parser_sample() -> argparse.ArgumentParser:
+    """Creates a 'sample' parent parser with common arguments and options for the command-line interface.
+
+    Returns:
+        argparse.ArgumentParser: The created 'sample' parent parser.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--sample",
+        metavar="STR",
+        help="sample accession(s) to consider",
+        type=str,
+        nargs="+",
+        default=[],
+    )
+    parser.add_argument(
+        "--sample-file",
+        metavar="FILE",
+        help="file containing sample accession(s) to consider (one per line)",
+        type=str,
+        nargs="+",
+        default=[],
+    )
+    return parser
+
+
+def create_parser_property() -> argparse.ArgumentParser:
+    """Creates a 'property' parent parser with common arguments and options for the command-line interface.
+
+    Returns:
+        argparse.ArgumentParser: The created 'property' parent parser.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--name", metavar="STR", help="property name", type=str, required=True
+    )
+    return parser
+
+
+def create_parser_reference() -> argparse.ArgumentParser:
+    """Creates a 'reference' parent parser with common arguments and options for the command-line interface.
+
+    Returns:
+        argparse.ArgumentParser: The created 'reference' parent parser.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "-r",
+        "--reference",
+        metavar="STR",
+        help="reference accession",
+        type=str,
+        default=None,
+    )
+    return parser
+
+
+def create_parser_thread() -> argparse.ArgumentParser:
+    """Creates a 'thread' parent parser with common arguments and options for the command-line interface.
+
+    Returns:
+        argparse.ArgumentParser: The created 'thread' parent parser.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "-t",
+        "--threads",
+        metavar="INT",
+        help="number of threads to use (default: 1)",
+        type=int,
+        default=1,
+    )
+    return parser
+
+
+def create_subparser_setup(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates a 'setup' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): ArgumentParser object to attach the 'setup' subparser to.
+        parent_parsers (argparse.ArgumentParser): ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'setup' subparser.
+    """
+    parser = subparsers.add_parser(
+        "setup", help="set up a new database", parents=parent_parsers
+    )
+    parser.add_argument(
+        "--default-props",
+        help="add commonly used properties to the new database",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--gbk",
+        metavar="GBK_FILE",
+        help="path to GenBank reference file (NC_063383.1. is used as default reference)",
+        type=str,
+        default=None,
+    )
+    return subparsers, parser
+
+
+def create_subparser_import(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates an 'import' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): ArgumentParser object to attach the 'import' subparser to.
+        parent_parsers (argparse.ArgumentParser): ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'import' subparser.
+    """
+    parser = subparsers.add_parser(
+        "import",
+        help="import genome sequences and sample properties into the database",
+        parents=parent_parsers,
+    )
+
+    parser.add_argument(
+        "--method",
+        help="Select alignment tools: 1. MAFFT 2. Parasail (default 1)",
+        type=int,
+        default=1,
+    )
+
+    parser.add_argument(
+        "--fasta",
+        help="fasta file containing genome sequences to import",
+        type=str,
+        nargs="+",
+        default=None,
+    )
+    parser.add_argument(
+        "--tsv",
+        metavar="TSV_FILE",
+        help="tab-delimited file containing sample properties to import",
+        type=str,
+        nargs="+",
+        default=[],
+    )
+    parser.add_argument(
+        "--csv",
+        metavar="CSV_FILE",
+        help="comma-delimited file containing sample properties to import",
+        type=str,
+        nargs="+",
+        default=[],
+    )
+    parser.add_argument(
+        "--cols",
+        help="assign column names used in the provided TSV/CSV file to the matching property names provided by the database in the form PROP=COL (e.g. SAMPLE=GenomeID)",
+        type=str,
+        nargs="+",
+        default=[],
+    )
+    parser.add_argument(
+        "--auto-link",
+        help="automatically link TSV/CSV columns with database fields based on identical names",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-update",
+        help="skip samples already existing in the database",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--cache",
+        metavar="DIR",
+        help="directory for chaching data (default: a temporary directory is created)",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--no-progress",
+        "-p",
+        help="don't show progress bars while importing",
+        action="store_true",
+    )
+    return subparsers, parser
+
+
+def create_subparser_list_prop(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates a 'list-prop' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): ArgumentParser object to attach the 'list-prop' subparser to.
+        parent_parsers (argparse.ArgumentParser): ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'list-prop' subparser.
+    """
+    parser = subparsers.add_parser(
+        "list-prop",
+        help="view sample properties added to the database",
+        parents=parent_parsers,
+    )
+    return subparsers, parser
+
+
+def create_subparser_add_prop(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates an 'add-prop' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): ArgumentParser object to attach the 'add-prop' subparser to.
+        parent_parsers (argparse.ArgumentParser): ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'add-prop' subparser.
+    """
+    parser = subparsers.add_parser(
+        "add-prop", help="add a property to the database", parents=parent_parsers
+    )
+    parser.add_argument(
+        "--descr",
+        metavar="STR",
+        help="a short description of the property",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--dtype",
+        metavar="STR",
+        help="the data type of the property",
+        type=str,
+        choices=["integer", "float", "text", "date", "zip", "pango"],
+        required=True,
+    )
+    parser.add_argument(
+        "--qtype",
+        metavar="STR",
+        help="the query type of the property",
+        type=str,
+        choices=["numeric", "float", "text", "date", "zip", "pango"],
+        default=None,
+    )
+    parser.add_argument(
+        "--default",
+        metavar="VAR",
+        help="the default value of the property (none by default)",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
+        "--subject",
+        metavar="VAR",
+        help="choose between sample or variant property (by default: sample)",
+        choices=["sample", "variant"],
+        default="sample",
+    )
+
+    return subparsers, parser
+
+
+def create_subparser_delete_prop(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates an 'delete-prop' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): ArgumentParser object to attach the 'delete-prop' subparser to.
+        parent_parsers (argparse.ArgumentParser): ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'delete-prop' subparser.
+    """
+    parser = subparsers.add_parser(
+        "delete-prop", help="delete a property to the database", parents=parent_parsers
+    )
+    parser.add_argument(
+        "--force",
+        help="skip user confirmation and force property to be deleted",
+        action="store_true",
+    )
+    return subparsers, parser
+
+
+def create_subparser_delete(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates an 'delete' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): ArgumentParser object to attach the 'delete' subparser to.
+        parent_parsers (argparse.ArgumentParser): ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'delete' subparser.
+    """
+    parser = subparsers.add_parser(
+        "delete", help="delete samples from the database", parents=parent_parsers
+    )
+    return subparsers, parser
+
+
+def create_subparser_match(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates a 'match' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): An ArgumentParser object to attach the 'match' subparser to.
+        parent_parsers (argparse.ArgumentParser): A list of ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'match' subparser.
+    """
+    parser = subparsers.add_parser(
+        "match",
+        help="match samples based on mutation profiles and/or properties",
+        parents=parent_parsers,
+    )
+
+    parser.add_argument(
+        "--profile",
+        "-p",
+        metavar="STR",
+        help="match genomes sharing the given mutation profile",
+        type=str,
+        action="append",
+        nargs="+",
+        default=[],
+    )
+    parser.add_argument(
+        "--showNX",
+        help="include non-informative polymorphisms in resulting mutation profiles (X for AA and N for NT)",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--frameshifts-only",
+        help="match only mutation profiles with frameshift mutations",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--out-cols",
+        metavar="STR",
+        help="define output columns for CSV and TSV files (by default all available columns are shown)",
+        type=str,
+        nargs="+",
+        default=[],
+    )
+    mutually_exclusive_group = parser.add_mutually_exclusive_group()
+    mutually_exclusive_group.add_argument(
+        "--count", help="count matching genomes only", action="store_true"
+    )
+    mutually_exclusive_group.add_argument(
+        "--format",
+        help="output format (default: tsv)",
+        choices=["csv", "tsv", "vcf"],
+        default="tsv",
+    )
+    return subparsers, parser
+
+
+def create_subparser_restore(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates a 'restore' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): An ArgumentParser object to attach the 'restore' subparser to.
+        parent_parsers (argparse.ArgumentParser): A list of ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'restore' subparser.
+    """
+    parser = subparsers.add_parser(
+        "restore",
+        help="restore genome sequences from the database",
+        parents=parent_parsers,
+    )
+    parser.add_argument(
+        "--aligned",
+        help='use pairwise aligned form (deletions indicated by "-" and insertions by lowercase letters)',
+        action="store_true",
+    )
+    return subparsers, parser
+
+
+def create_subparser_info(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates a 'info' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): An ArgumentParser object to attach the 'info' subparser to.
+        parent_parsers (argparse.ArgumentParser): A list of ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'info' subparser.
+    """
+    parser = subparsers.add_parser(
+        "info",
+        help="show detailed information on a given database",
+        parents=parent_parsers,
+    )
+    parser.add_argument(
+        "--detailed",
+        help="show numbers of stored mutations (dependent on database size this might take a while to process)",
+        action="store_true",
+    )
+    return subparsers, parser
+
+
+def create_subparser_optimize(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    """
+    Creates an 'optimize' subparser with command-specific arguments and options for the command-line interface.
+
+    Args:
+        subparsers (argparse._SubParsersAction): ArgumentParser object to attach the 'optimize' subparser to.
+        parent_parsers (argparse.ArgumentParser): ArgumentParser objects providing common arguments and options.
+
+    Returns:
+        argparse.ArgumentParser: The created 'optimize' subparser.
+    """
+    parser = subparsers.add_parser(
+        "optimize", help="optimize database", parents=parent_parsers
+    )
+    parser.add_argument(
+        "--tempdir",
+        help="custom temporrary directory (default: None)",
+        type=str,
+        default=None,
+    )
+    return subparsers, parser
+
+
+def create_subparser_list_reference(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+
+    # View Reference.
+    parser = subparsers.add_parser(
+        "list-ref",
+        parents=parent_parsers,
+        help="List all references in database.",
+    )
+    return subparsers, parser
+
+
+def create_subparser_add_reference(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+
+    parser = subparsers.add_parser(
+        "add-ref",
+        parents=parent_parsers,
+        help="Add reference sequence to the database.",
+    )
+    parser.add_argument(
+        "--gbk",
+        metavar="FILE",
+        help="genbank file of a reference genome",
+        type=str,
+        required=True,
+    )
+
+    return subparsers, parser
+
+
+def create_subparser_delete_reference(
+    subparsers: argparse._SubParsersAction, *parent_parsers: argparse.ArgumentParser
+) -> argparse.ArgumentParser:
+    # Delete Reference.
+    parser = subparsers.add_parser(
+        "delete-ref",
+        parents=parent_parsers,
+        help="Delete a reference in database.",
+    )
+    return subparsers, parser
 
 
 def main(args):  # noqa: C901
@@ -481,7 +759,7 @@ def main(args):  # noqa: C901
     #    logging.info("CHECK DB: Connected successfully!")
 
     if not hasattr(args, "db"):  # or args.db:
-        logging.warning("No --db is given, MPoxSonar use variables from .env file.")
+        LOGGER.warning("If NO -db is given, Tool will use variables from .env file.")
     #    if args.tool != "setup" and args.db is not None and not os.path.isfile(args.db):
     #        sys.exit("input error: database does not exist.")
 
@@ -491,7 +769,9 @@ def main(args):  # noqa: C901
         if args.gbk:
             check_file(args.gbk)
 
-        sonarBasics.setup_db(args.db, reference_gb=args.gbk, debug=debug)
+        sonarBasics.setup_db(
+            args.db, args.default_props, reference_gb=args.gbk, debug=debug
+        )
 
     elif args.tool == "db-upgrade":
         print("WARNING: Backup db file before upgrading")
@@ -501,7 +781,7 @@ def main(args):  # noqa: C901
         if decision == "YES":
             sonarDBManager.upgrade_db(args.db)
         else:
-            logging.info("No operation is performed")
+            LOGGER.info("No operation is performed")
     else:
         with sonarDBManager(args.db, readonly=True) as dbm:
             dbm.check_db_compatibility()
@@ -526,7 +806,14 @@ def main(args):  # noqa: C901
     # other than the above
     # import
     if args.tool == "import":
-        logging.info("You are using Parasail aligner")
+        # Check if only one number is passed
+        if args.method == 1:
+            LOGGER.info("Method: MAFTT aligner")
+        elif args.method == 2:
+            LOGGER.info("Method: Parasail aligner")
+        else:
+            sys.exit("Invalid method. Please choose 1 for MAFFT or 2 for Parasail.")
+
         sonarBasics.import_data(
             db=args.db,
             fasta=args.fasta,
@@ -534,12 +821,13 @@ def main(args):  # noqa: C901
             tsv_files=args.tsv,
             cols=args.cols,
             cachedir=args.cache,
-            autolink=not args.no_autodetect,
+            autolink=args.auto_link,
             progress=not args.no_progress,
             update=not args.no_update,
             threads=args.threads,
             debug=args.debug,
             reference=args.reference,
+            method=args.method,
         )
 
     # view-prop
@@ -619,7 +907,7 @@ def main(args):  # noqa: C901
                 args.subject,
                 args.default,
             )
-        logging.info("Inserted successfully: %s", args.name)
+        LOGGER.info("Inserted successfully: %s", args.name)
 
     # delprop
     elif args.tool == "delete-prop":
@@ -631,7 +919,7 @@ def main(args):  # noqa: C901
             if args.force:
                 decision = "YES"
             else:
-                logging.warning(
+                LOGGER.warning(
                     "There are"
                     " %d"
                     " samples with content for this property. Amongst those,"
@@ -645,26 +933,10 @@ def main(args):  # noqa: C901
                     )
             if decision == "YES":
                 dbm.delete_property(args.name)
-                logging.info("property deleted.")
+                LOGGER.info("property deleted.")
             else:
-                logging.info("property not deleted.")
-    # del ref
-    elif args.tool == "delete-ref":
+                LOGGER.info("property not deleted.")
 
-        logging.warning(
-            f"The {args.reference} will be removed, and all the samples with this reference will also be removed."
-        )
-        logging.warning(
-            "If you need to import data again, you have to create new cache directory, add a reference and then perform import."
-        )
-        decision = ""
-        while decision not in ("YES", "no"):
-            decision = input("Do you really want to delete this reference? [YES/no]: ")
-        if decision == "YES":
-            sonarBasics.del_ref(args.db, args.reference, debug)
-            logging.info("Reference deleted.")
-        else:
-            logging.info("Reference not deleted.")
     # delete
     elif args.tool == "delete":
         samples = set([x.strip() for x in args.sample])
@@ -674,7 +946,7 @@ def main(args):  # noqa: C901
                 for line in handle:
                     samples.add(line.strip())
         if len(samples) == 0:
-            logging.info("Nothing to delete.")
+            LOGGER.info("Nothing to delete.")
         else:
             sonarBasics.delete(args.db, *samples, debug=args.debug)
 
@@ -687,7 +959,7 @@ def main(args):  # noqa: C901
                 for line in handle:
                     samples.add(line.strip())
         if len(samples) == 0:
-            logging.info("Nothing to restore.")
+            LOGGER.info("Nothing to restore.")
         else:
             sonarBasics.restore(
                 args.db,
@@ -778,7 +1050,7 @@ def main(args):  # noqa: C901
             check_file(args.gbk)
         flag = sonarBasics.add_ref_by_genebank_file(args.db, args.gbk, debug=args.debug)
         if flag == 0:
-            logging.info("Adding reference has been successfully")
+            LOGGER.info("The reference has been added successfully")
     elif args.tool == "list-ref":
         with sonarDBManager(args.db, debug=debug) as dbm:
             rows = dbm.references
@@ -789,7 +1061,7 @@ def main(args):  # noqa: C901
     elif args.tool == "import-ann":
         paired_list = []
         if args.sample_file:
-            logging.info("Bulk insert: ")
+            LOGGER.info("Bulk insert: ")
             for file in args.sample_file:
                 with open_file(file, compressed="auto") as f:
                     for line in f:
@@ -801,7 +1073,7 @@ def main(args):  # noqa: C901
                         paired_list.append((ann_input, sonar_hash))
         else:
             if args.ann_input is None or args.sonar_hash is None:
-                logging.error("Both --ann-input and --sonar-hash are required.")
+                LOGGER.error("Both --ann-input and --sonar-hash are required.")
                 sys.exit(1)
             check_file(args.ann_input)
             check_file(args.sonar_hash)
@@ -816,7 +1088,7 @@ def main(args):  # noqa: C901
 
     # dev
     if args.tool == "dev":
-        logging.info("***Dev. mode***")
+        LOGGER.info("***Dev. mode***")
         if args.up_vartype:
             fix_annotation(args.db, debug=args.debug)
         elif args.up_pre_ref:
@@ -825,7 +1097,7 @@ def main(args):  # noqa: C901
             fix_element_id_NT(args.db, debug=args.debug)
         else:
             test_align_mafft()
-        logging.info("***Done...***")
+        LOGGER.info("***Done...***")
     # Finished successfully
     return 0
 

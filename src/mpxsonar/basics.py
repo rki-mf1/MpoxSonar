@@ -5,25 +5,39 @@
 
 # DEPENDENCIES
 import collections
+from contextlib import contextmanager
 import csv
 from datetime import datetime
+import gzip
+from hashlib import sha256
 import json
+import lzma
 import os
 import sys
+from typing import Union
+import zipfile
 
-from Bio import SeqIO
+from Bio.Seq import Seq
+import magic
 from mpire import WorkerPool
 import pandas as pd
 from tqdm import tqdm
 
+from mpxsonar.align import sonarAligner
 from mpxsonar.annotation import read_sonar_hash
 from mpxsonar.annotation import read_tsv_snpSift
+from mpxsonar.cache import sonarCache
+from mpxsonar.dbm import sonarDBManager
+from mpxsonar.logging import LoggingConfigurator
+from mpxsonar.utils_1 import get_filename_sonarhash
 from . import __version__
-from . import logging
-from .align import sonarAligner
-from .cache import sonarCache
-from .dbm import sonarDBManager
-from .utils import harmonize
+
+#  from .align import sonarAligner
+#  from .cache import sonarCache
+#  from .dbm import sonarDBManager
+# from .utils import get_filename_sonarhash
+# Initialize logger
+LOGGER = LoggingConfigurator.get_logger()
 
 
 # CLASS
@@ -45,96 +59,42 @@ class sonarBasics(object):
     # @staticmethod
     # def get_module_base(*join_with):
     #    return os.path.join(os.path.dirname(os.path.realpath(__file__)), *join_with)
-
+    # FILE HANDLING
     @staticmethod
-    def setup_db(  # noqa: C901
-        url,
-        default_setup=True,
-        reference_gb=None,
-        debug=False,
-        quiet=False,
-    ):
+    @contextmanager
+    def open_file_autodetect(file_path: str, mode: str = "r"):
+        """
+        Opens a file with automatic packing detection.
+
+        Args:
+            file_path: The path of the file to open.
+            mode: The mode in which to open the file. Default is 'r' (read mode).
+
+        Returns:
+            A context manager yielding a file object.
+        """
+        # Use the magic library to identify the file type
+        file_type = magic.from_file(file_path, mime=True)
+
+        if file_type == "application/x-xz":
+            file_obj = lzma.open(file_path, mode + "t")  # xz
+        elif file_type == "application/gzip":
+            file_obj = gzip.open(file_path, mode + "t")  # gz
+        elif file_type == "application/zip":
+            zip_file = zipfile.ZipFile(file_path, mode)  # zip
+            # Assumes there's one file in the ZIP, adjust as necessary
+            file_obj = zip_file.open(zip_file.namelist()[0], mode)
+        elif file_type == "text/plain":  # plain
+            file_obj = open(file_path, mode)
+        else:
+            raise ValueError(f"Unsupported file type: {file_type}")
+
         try:
-            sonarDBManager.setup(url, debug=debug)
-
-            # loading default data
-            if default_setup:
-                with sonarDBManager(url, readonly=False, debug=debug) as dbm:
-                    # adding pre-defined sample properties
-                    dbm.add_property(
-                        "imported",
-                        "date",
-                        "date",
-                        "date sample has been imported to the database",
-                        "sample",
-                    )
-                    dbm.add_property(
-                        "modified",
-                        "date",
-                        "date",
-                        "date when sample data has been modified lastly",
-                        "sample",
-                    )
-                    dbm.add_property(
-                        "SEQ_TECH",
-                        "text",
-                        "text",
-                        "stores the sequencing technologies.",
-                        "sample",
-                    )
-                    dbm.add_property(
-                        "LENGTH",
-                        "integer",
-                        "numeric",
-                        "stores the genome lenght",
-                        "sample",
-                    )
-                    dbm.add_property(
-                        "GEO_LOCATION",
-                        "text",
-                        "text",
-                        "stores the GEO location",
-                        "sample",
-                    )
-                    dbm.add_property(
-                        "COUNTRY",
-                        "text",
-                        "text",
-                        "stores a country",
-                        "sample",
-                    )
-                    dbm.add_property(
-                        "GENOME_COMPLETENESS",
-                        "text",
-                        "text",
-                        "stores genome completeness",
-                        "sample",
-                    )
-                    dbm.add_property(
-                        "COLLECTION_DATE",
-                        "date",
-                        "date",
-                        "stores the sample collection date",
-                        "sample",
-                    )
-                    # adding reference
-                    if not reference_gb:
-                        reference_gb = os.path.join(
-                            os.path.dirname(os.path.abspath(__file__)),
-                            "data",
-                            "NC_063383.1.gb",
-                        )
-                    # adding reference
-                    sonarBasics().add_ref_by_genebank_file(
-                        url, reference_gb, debug=debug
-                    )
-
-                    if not quiet:
-                        logging.info("Success: Database was successfully installed")
-        except Exception as e:
-            logging.exception(e)
-            logging.error("Database was fail to create")
-            sys.exit()
+            yield file_obj
+        finally:
+            file_obj.close()
+            if file_type == "application/zip":
+                zip_file.close()
 
     @staticmethod
     def add_ref_by_genebank_file(db_url, reference_gb, debug=False):
@@ -241,8 +201,8 @@ class sonarBasics(object):
                             )
                 return 0
             except Exception as e:
-                logging.exception(e)
-                logging.error("Fail to process GeneBank file")
+                LOGGER.exception(e)
+                LOGGER.error("Fail to process GeneBank file")
                 raise
 
     # DATA IMPORT
@@ -258,136 +218,6 @@ class sonarBasics(object):
             )
             base += round((segment.end - segment.start - 1) / div, 1)
         return segments
-
-    @staticmethod
-    def iter_genbank(fname):  # noqa: C901
-        """
-        small note on iter_genbank function
-        1. At CDS and gene type, if "gene" key is not exist in dict, we use locus_tag instead.
-        https://www.ncbi.nlm.nih.gov/genomes/locustag/Proposal.pdf. This also apply to accession
-        in similar way.
-
-        """
-        gb_data = {}
-        for gb_record in SeqIO.parse(fname, "genbank"):
-            # adding general annotation
-            gb_data["accession"] = (
-                gb_record.name + "." + str(gb_record.annotations["sequence_version"])
-            )
-            gb_data["symbol"] = (
-                gb_record.annotations["symbol"]
-                if "symbol" in gb_record.annotations
-                else ""
-            )
-            gb_data["organism"] = gb_record.annotations["organism"]
-            gb_data["moltype"] = None
-            gb_data["description"] = gb_record.description
-            gb_data["length"] = None
-            gb_data["segment"] = ""
-            gb_data["gene"] = []
-            gb_data["cds"] = []
-            gb_data["source"] = None
-
-            # adding source annotation
-            source = [x for x in gb_record.features if x.type == "source"]
-            if len(source) != 1:
-                sys.exit(
-                    "genbank error: expecting exactly one source feature (got: "
-                    + str(len(source))
-                    + ")"
-                )
-            feat = source[0]
-            gb_data["moltype"] = (
-                feat.qualifiers["mol_type"][0] if "mol_type" in feat.qualifiers else ""
-            )
-            gb_data["source"] = {
-                "accession": gb_data["accession"],
-                "symbol": gb_data["accession"],
-                "start": int(feat.location.start),
-                "end": int(feat.location.end),
-                "strand": "",
-                "sequence": harmonize(feat.extract(gb_record.seq)),
-                "description": "",
-                "parts": sonarBasics.process_segments(feat.location.parts),
-            }
-            gb_data["length"] = len(gb_data["source"]["sequence"])
-            if "segment" in feat.qualifiers:
-                gb_data["segment"] = feat.qualifiers["segment"][0]
-            try:
-                for feat in gb_record.features:
-                    # adding gene annotation
-                    if feat.type == "gene":
-                        # pseudogene is unknown
-                        if "pseudogene" in feat.qualifiers:
-                            continue
-                        if feat.id != "<unknown id>":
-                            accession = feat.id
-                        elif "gene" in feat.qualifiers:
-                            accession = feat.qualifiers["gene"][0]
-                        elif "locus_tag" in feat.qualifiers:
-                            accession = feat.qualifiers["locus_tag"][0]
-
-                        if "gene" in feat.qualifiers:
-                            symbol = feat.qualifiers["gene"][0]
-                        else:
-                            symbol = feat.qualifiers["locus_tag"][0]
-                        gb_data["gene"].append(
-                            {
-                                "accession": accession,
-                                "symbol": symbol,
-                                "start": int(feat.location.start),
-                                "end": int(feat.location.end),
-                                "strand": feat.strand,
-                                "sequence": harmonize(
-                                    feat.extract(gb_data["source"]["sequence"])
-                                ),
-                                "description": "",
-                                "parts": sonarBasics.process_segments(
-                                    feat.location.parts
-                                ),
-                            }
-                        )
-                    # adding cds annotation
-                    elif feat.type == "CDS":
-                        parts = sonarBasics.process_segments(feat.location.parts, True)
-                        # when pseudogene is unknown
-                        if "pseudogene" in feat.qualifiers:
-                            continue
-                        # when gene symbol is not available.
-                        if "gene" in feat.qualifiers:
-                            symbol = feat.qualifiers["gene"][0]
-                        else:
-                            symbol = feat.qualifiers["locus_tag"][0]
-
-                        gb_data["cds"].append(
-                            {
-                                "accession": feat.qualifiers["protein_id"][0],
-                                "symbol": symbol,
-                                "start": int(feat.location.start),
-                                "end": int(feat.location.end),
-                                "strand": feat.strand,
-                                "gene": symbol,
-                                "sequence": feat.qualifiers["translation"][0],
-                                "description": feat.qualifiers["product"][0],
-                                "parts": parts,
-                            }
-                        )
-                        if sum([abs(x[1] - x[0]) for x in parts]) % 3 != 0:
-                            sys.exit(
-                                "gbk error: length of cds '"
-                                + feat.qualifiers["protein_id"][0]
-                                + "' is not a multiple of 3 ("
-                                + str(sum([abs(x[1] - x[2]) for x in parts]))
-                                + ")."
-                            )
-
-            except KeyError as e:
-                logging.exception(e)
-                logging.error("-----------")
-                print(feat)
-                raise
-
-            yield gb_data
 
     # importing
     @staticmethod
@@ -411,16 +241,17 @@ class sonarBasics(object):
         debug=False,
         quiet=False,
         reference=None,
+        method=1,
     ):
         if not quiet:
             if not update:
-                logging.info("import mode: skipping existing samples")
+                LOGGER.info("import mode: skipping existing samples")
             else:
-                logging.info("import mode: updating existing samples")
+                LOGGER.info("import mode: updating existing samples")
 
         if not fasta:
             if (not tsv_files and not csv_files) or not update:
-                logging.info("Nothing to import.")
+                LOGGER.info("Nothing to import.")
                 exit(0)
 
         # prop handling
@@ -484,21 +315,20 @@ class sonarBasics(object):
                             )
                     if "sample" not in cols:
                         sys.exit(
-                            "error: tsv file does not contain required sample column."
+                            "error: meta file does not contain required sample column."
                         )
                     elif len(cols) == 1:
                         sys.exit(
-                            "input error: tsv does not provide any informative column."
+                            "input error: meta file does not provide any informative column."
                         )
                     for line in handle:
                         pbar.update(len(line))
-                        fields = line.strip("\r\n").split(",")
+                        fields = line.strip("\r\n").split(delim)
 
                         sample = fields[cols["sample"]]
                         for x in cols:
                             if x == "sample":
                                 continue
-
                             properties[sample][x] = fields[cols[x]]
 
         # setup cache
@@ -516,8 +346,10 @@ class sonarBasics(object):
         # importing sequences
         if fasta:
             cache.add_fasta(*fasta, propdict=properties)
-            aligner = sonarAligner(cache_outdir=cachedir)
+
+            aligner = sonarAligner(cache_outdir=cachedir, method=method)
             l = len(cache._samplefiles_to_profile)
+
             # start alignment
             with WorkerPool(n_jobs=threads, start_method="fork") as pool, tqdm(
                 desc="profiling sequences...",
@@ -527,7 +359,7 @@ class sonarBasics(object):
                 disable=not progress,
             ) as pbar:
                 for _ in pool.imap_unordered(
-                    aligner.process_cached_sample_v1, cache._samplefiles_to_profile
+                    aligner.process_cached_sample, cache._samplefiles_to_profile
                 ):
                     pbar.update(1)
             # insert into DB
@@ -535,11 +367,11 @@ class sonarBasics(object):
 
         # importing properties
         if metafiles:
-            logging.info("Import meta data...")
+            LOGGER.info("Import meta data...")
             with sonarDBManager(db, readonly=False, debug=debug) as dbm:
                 for sample_name in tqdm(
                     properties,
-                    desc="import data ...",
+                    desc="import meta data ...",
                     total=len(properties),
                     unit="samples",
                     bar_format="{desc} {percentage:3.0f}% [{n_fmt}/{total_fmt}, {elapsed}<{remaining}, {rate_fmt}{postfix}]",
@@ -572,13 +404,15 @@ class sonarBasics(object):
         with sonarDBManager(db, debug=debug) as dbm:
             if format == "vcf" and reference is None:
                 reference = dbm.get_default_reference_accession()
-                logging.info(f"Query using default reference: {reference}")
+                LOGGER.info(f"Query using default reference: {reference}")
             elif format != "vcf" and reference is None:
                 # retrieve all references
                 # reference = None
-                logging.info("Query using reference: all references")
+                if debug:
+                    LOGGER.info("Query using reference: all references")
             else:
-                logging.info(f"Query using reference: {reference}")
+                if debug:
+                    LOGGER.info(f"Query using reference: {reference}")
 
             cursor = dbm.match(
                 *profiles,
@@ -591,7 +425,7 @@ class sonarBasics(object):
                 ignoreTerminalGaps=ignoreTerminalGaps,
             )
             if format == "csv" or format == "tsv":
-                logging.info("Total result: " + str(len(cursor)))
+                LOGGER.info("Total result: " + str(len(cursor)))
                 tsv = True if format == "tsv" else False
                 sonarBasics.exportCSV(
                     cursor, outfile=outfile, na="*** no match ***", tsv=tsv
@@ -680,7 +514,7 @@ class sonarBasics(object):
             before = dbm.count_samples()
             dbm.delete_samples(*samples)
             after = dbm.count_samples()
-            logging.info(
+            LOGGER.info(
                 " %d of %d samples found and deleted."
                 " %d samples remain in the database."
                 % (before - after, len(samples), after)
@@ -689,15 +523,15 @@ class sonarBasics(object):
     # delete reference
     @staticmethod
     def del_ref(db, reference, debug):
-        logging.info("Start to delete....the process is not reversible.")
+        LOGGER.info("Start to delete....the process is not reversible.")
         with sonarDBManager(db, readonly=False, debug=debug) as dbm:
 
             # remove alignment
             samples_ids = dbm.get_samples_by_ref(reference)
-            logging.info(
+            LOGGER.info(
                 f"{len(samples_ids)} sample that linked to the reference will be also deleted"
             )
-            # delete only reference will also delete the whole related data.
+            # delete only reference will also delete the whole linked data.
             """
             if samples_ids:
                 if debug:
@@ -736,8 +570,8 @@ class sonarBasics(object):
         nuc_profiles = collections.defaultdict(list)
         aa_profiles = collections.defaultdict(list)
         samples = set()
-        logging.warning("getting profile data")
-        logging.warning("processing profile data")
+        LOGGER.warning("getting profile data")
+        LOGGER.warning("processing profile data")
         for row in cursor:
 
             samples.add(row["samples"])
@@ -757,7 +591,7 @@ class sonarBasics(object):
         for sample in sorted(samples):
             print(sorted(nuc_profiles[sample], key=lambda x: (x[0], x[1])))
 
-        logging.warning("assembling profile data")
+        LOGGER.warning("assembling profile data")
         for sample in sorted(samples):
             out.append(
                 {
@@ -788,7 +622,7 @@ class sonarBasics(object):
             if i == -1:
                 print(na)
         except Exception:
-            logging.error("An exception occurred %s", row)
+            LOGGER.error("An exception occurred %s", row)
             raise
 
     # vcf
@@ -870,6 +704,7 @@ class sonarBasics(object):
                 # if not outfile.endswith(".gz"):
                 # outfile += ".gz"
 
+                os.makedirs(os.path.dirname(outfile), exist_ok=True)
                 # Combine sonar_hash and reference into a single dictionary
                 data = {
                     "sample_variantTable": IDs_list,
@@ -877,12 +712,12 @@ class sonarBasics(object):
                     "reference": reference,
                 }
                 # Remove the existing extension from outfile and then append a new extension.
-                filename = os.path.splitext(outfile)[0] + ".sonar_hash"
-                with open(filename, "w") as file:
+                filename_sonarhash = get_filename_sonarhash(outfile)
+                with open(filename_sonarhash, "w") as file:
                     json.dump(data, file)
-                    logging.info(
-                        f"sample list output: '{filename}', this file is used when you want to reimport annotated data back to the database."
-                    )
+                    # logging.info(
+                    #    f"sample list output: '{filename_sonarhash}', this file is used when you want to reimport annotated data back to the database."
+                    # )
                 handle = open(outfile, mode="w")  # bgzf.open(outfile, mode='wb')
 
             # vcf header
@@ -966,7 +801,7 @@ class sonarBasics(object):
     def set_key(dictionary, key, value):
         if key not in dictionary:
             dictionary[key] = value
-        elif type(dictionary[key]) == list:
+        elif type(dictionary[key]) is list:
             dictionary[key].append(value)
         else:
             dictionary[key] = [dictionary[key], value]
@@ -989,7 +824,7 @@ class sonarBasics(object):
         with sonarDBManager(db, readonly=False) as dbm:
             for _tuple in tqdm(
                 paired_list,
-                desc="Importing data...",
+                desc="Importing annoation data...",
                 total=len(paired_list),
                 unit="samples",
                 bar_format="{desc} {percentage:3.0f}% [{n_fmt}/{total_fmt}, {elapsed}<{remaining}, {rate_fmt}{postfix}]",
@@ -1009,7 +844,7 @@ class sonarBasics(object):
                     source_ids_list = dbm.get_element_ids(reference_accession, "source")
 
                     if len(source_ids_list) > 1:
-                        logging.error("There is a duplicated element ID!!")
+                        LOGGER.error("There is a duplicated element ID!!")
                         sys.exit(1)
                     else:
                         source_element_id = source_ids_list[0]
@@ -1017,7 +852,7 @@ class sonarBasics(object):
                     alnids = dbm.get_alignment_id(hash_value, source_element_id)
 
                     if type(alnids) is list:
-                        logging.error(
+                        LOGGER.error(
                             f"Hash value: {hash_value} is not found in the database!!"
                         )
                         sys.exit(1)
@@ -1062,17 +897,17 @@ class sonarBasics(object):
                         # If it does not return any result or more than 1, we should raise an error because
                         # the wrong annotated text file is being used or the database has already been modified.
                         if len(selected_row) != 1:
-                            logging.error(
+                            LOGGER.error(
                                 "It appears that the wrong annotated text file is being used "
                                 "or the .sonar_hash file is not match to the input "
                                 "or the database has already been modified. Please double-check the file "
                                 "or database!"
                             )
-                            logging.debug("Get VAR:")
-                            logging.debug(selected_var)
-                            logging.debug("Use for searching a ROW:")
-                            logging.debug(f"start:{start} , ref:{ref} , alt:{alt}")
-                            logging.debug("Get DF:")
+                            LOGGER.debug("Get VAR:")
+                            LOGGER.debug(selected_var)
+                            LOGGER.debug("Use for searching a ROW:")
+                            LOGGER.debug(f"start:{start} , ref:{ref} , alt:{alt}")
+                            LOGGER.debug("Get DF:")
                             print(f"{annotated_df[annotated_df['POS'] == start]}")
                             sys.exit(1)
 
@@ -1089,3 +924,46 @@ class sonarBasics(object):
                             dbm.insert_alignment2annotation(
                                 variant_id, alignment_id, effect_id
                             )
+
+    # SEQUENCE HANDLING
+    def harmonize_seq(seq: str) -> str:
+        """
+        Harmonizes the input sequence.
+
+        This function trims leading and trailing white spaces, converts the sequence to upper case and
+        replaces all occurrences of "U" with "T". It's usually used to standardize the format of a DNA
+        or RNA sequence.
+
+        Args:
+            seq (str): The input sequence as a string.
+
+        Returns:
+            str: The harmonized sequence.
+        """
+        try:
+            return seq.strip().upper().replace("U", "T")
+        except AttributeError as e:
+            raise ValueError(
+                f"Invalid input, expected a string, got {type(seq).__name__}"
+            ) from e
+
+    @staticmethod
+    def hash_seq(seq: Union[str, Seq]) -> str:
+        """
+        Generate a hash from a sequence.
+
+        Args:
+            seq: The sequence to hash. This can either be a string or a Seq object from BioPython.
+
+        Returns:
+            The SHA-256 hash of the sequence.
+
+        Notes:
+            The SHA-256 hash algorithm is used as it provides a good balance
+            between performance and collision resistance.
+        """
+        # If the input is a BioPython Seq object, convert it to a string.
+        if isinstance(seq, Seq):
+            seq = str(seq)
+
+        return sha256(seq.upper().encode()).hexdigest()

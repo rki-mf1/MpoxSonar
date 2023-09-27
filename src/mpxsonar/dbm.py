@@ -21,15 +21,17 @@ import mariadb
 import pandas as pd
 from tqdm import tqdm
 
+from mpxsonar.utils_1 import insert_before_keyword
 from . import logging
 from .config import DB_URL
-from .utils import insert_before_keyword
 
 sys.path.insert(1, "..")
 
 # COMPATIBILITY
 MAX_SUPPORTED_DB_VERSION = 2
 SUPPORTED_DB_VERSION = 1.2
+# Initialize logger
+LOGGER = logging.LoggingConfigurator.get_logger()
 
 
 class sonarDBManager:
@@ -80,7 +82,6 @@ class sonarDBManager:
     def __init__(
         self, db_url=None, timeout=-1, readonly=True, debug=False, autocreate=False
     ):
-        logging.basicConfig(format="%(asctime)s %(message)s")
 
         if db_url is None:
             # logging.warning("No --db is given, MPXSonar use variables from .env file.")
@@ -188,7 +189,7 @@ class sonarDBManager:
                 database=db_database,
             )
         except mariadb.Error as e:
-            logging.error(f"Error connecting to MariaDB Platform: {e}")
+            LOGGER.error(f"Error connecting to MariaDB Platform: {e}")
             sys.exit(1)
 
         # if self.debug:
@@ -365,14 +366,14 @@ class sonarDBManager:
                 command = command.strip()
                 if command != "":
                     if debug:
-                        logging.info(command)
+                        LOGGER.info(command)
                     cursor.execute(command)
 
             con.commit()
             con.close()
 
         except mariadb.Error as e:
-            logging.error(f"Error in MariaDB: {e}")
+            LOGGER.error(f"Error in MariaDB: {e}")
             sys.exit(1)
         # with sqlite3.connect(uri + "?mode=rwc", uri=True) as con:
         #    if debug:
@@ -391,8 +392,19 @@ class sonarDBManager:
 
     def add_property(
         self, name, datatype, querytype, description, target, standard=None
-    ):
+    ) -> int:
         """
+        Adds a new property and returns the property id.
+
+        Args:
+            name (str): The name of the property.
+            datatype (str): The data type of the property.
+            querytype (str): The query type of the property.
+            description (str): The description of the property.
+            subject (str): The subject of the property.
+            standard (Optional[str], optional): The standard of the property. Defaults to None.
+            check_name (bool, optional): Whether to check the property name. Defaults to True.
+
         adds a new property and returns the property id.
 
         >>> dbm = getfixture('init_writeable_dbm')
@@ -472,13 +484,22 @@ class sonarDBManager:
 
         """
         self.add_translation_table(translation_table)
-        if standard:
-            sql = "UPDATE reference SET standard = 0 WHERE standard != 0"
-            self.cursor.execute(sql)
-        sql = "INSERT INTO reference (id, accession, description, organism, translation_id, standard) VALUES(?, ?, ?, ?, ?, ?);"
-        self.cursor.execute(
-            sql, [None, accession, description, organism, translation_table, standard]
-        )
+        try:
+            if standard:
+                sql = "UPDATE reference SET standard = 0 WHERE standard != 0"
+                self.cursor.execute(sql)
+            sql = "INSERT INTO reference (id, accession, description, organism, translation_id, standard) VALUES(?, ?, ?, ?, ?, ?);"
+            self.cursor.execute(
+                sql,
+                [None, accession, description, organism, translation_table, standard],
+            )
+        except mariadb.IntegrityError as e:
+            LOGGER.error(e)
+            LOGGER.info("This reference might already be in the database.")
+            sys.exit("If you need an assistance, please contact us.")
+        except Exception as e:
+            LOGGER.error(e)
+            sys.exit("If you need an assistance, please contact us.")
         return self.cursor.lastrowid
 
     # INSERTING DATA
@@ -514,9 +535,12 @@ class sonarDBManager:
                     property_value,
                 ],
             )
+
         except Exception as e:
-            logging.error(e)
-            logging.error(f"Sample ID:'{str(sample_id)}' cannot be processed")
+            LOGGER.error(e)
+            LOGGER.error(
+                f"[insert property] Sample ID:'{str(sample_id)}' cannot be processed"
+            )
             sys.exit("If you need an assistance, please contact us.")
 
     def insert_sequence(self, seqhash):
@@ -579,7 +603,7 @@ class sonarDBManager:
             else:
                 condition = f" element_id = '{element_id}'"
         if not condition:
-            logging.info("Nothing to delete an alignment")
+            LOGGER.info("Nothing to delete an alignment")
             return
 
         sql = f"DELETE FROM alignment WHERE {condition};"
@@ -607,7 +631,7 @@ class sonarDBManager:
             rowid = rowid["id"]
             # print("rowid", rowid)
         else:
-            logging.error("Cannot get rowid:", rowid)
+            LOGGER.error("Cannot get rowid:", rowid)
             sys.exit("Cannot get rowid:")
         return rowid
 
@@ -735,6 +759,78 @@ class sonarDBManager:
                 self.cursor.execute(sql, [eid] + part)
         return eid
 
+    def insert_variant_many(self, row_list, alignment_id):
+        """
+        row_list = [(
+        element_id, 0
+        ref, 1
+        alt, 2
+        start, 3
+        end, 4
+        label, 5
+        frameshift, 6
+        )]
+
+        updated_var_row_list = [(id 0, element_id 1, pre_ref 2, start 3, end 4, ref 5, alt 6,
+        label 7, parent_id 8, frameshift 9)]
+        """
+        updated_var_row_list = []
+        parent_id = ""
+        ref_dict = self.sequence_references
+
+        for row in row_list:
+            # print(row)
+            try:
+                # Convert the old tuple to a list to modify it
+                updated_list = list(row)
+
+                selected_ref_seq = ref_dict[int(row[0])]
+                if int(row[3]) <= 0:
+                    pre_ref = ""
+                else:
+                    pre_ref = selected_ref_seq[int(row[3]) - 1]
+
+            except KeyError:
+                # KeyError for a case of Amino Acid, we don't stroe these information at this moment.
+                # logging.warn(e)
+                pre_ref = ""
+
+            # Insert None (*ID) at position 0
+            updated_list.insert(0, None)
+            # Insert pre_ref at position 2
+            updated_list.insert(2, pre_ref)
+            updated_list.insert(8, parent_id)
+            # Convert the updated list back to a tuple and append to the new list
+            updated_var_row_list.append(tuple(updated_list))
+            # print(updated_list)
+
+        sql = "INSERT IGNORE INTO variant (id, element_id, pre_ref, ref, alt, start, end, label, parent_id, frameshift) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
+        self.cursor.executemany(sql, updated_var_row_list)
+
+        # print('Execution time- updated_var_row_list:',  round(elapsed_time,2), 'seconds')
+
+        updated_alignment2variant_list = []
+        variant_data_list = []
+        # st = time.time()  # NOTE!!: Slow Performance
+        for row in updated_var_row_list:
+            """
+            element_id = row[1]
+            start = row[3]
+            end = row[4]
+            ref = row[5]
+            alt = row[6]
+            """
+            variant_data_list.append((row[1], row[3], row[4], row[5], row[6]))
+        _data_list = self.get_variant_ids(variant_data_list)
+
+        # print('Execution time- get_variant_ids:',  round(elapsed_time,2), 'seconds')
+        for row_id in _data_list:
+            updated_alignment2variant_list.append((alignment_id, row_id))
+        sql = "INSERT IGNORE INTO alignment2variant (alignment_id, variant_id) VALUES(?, ?);"
+        self.cursor.executemany(sql, updated_alignment2variant_list)
+
+        # print('Execution time- updated_alignment2variant_list:',  round(elapsed_time,2), 'seconds')
+
     def insert_variant(
         self,
         alignment_id,
@@ -744,7 +840,7 @@ class sonarDBManager:
         start,
         end,
         label,
-        frameshift,
+        frameshift=0,
         parent_id="",
     ):
         """
@@ -755,14 +851,17 @@ class sonarDBManager:
         Returns the rowid of the inserted variant.
 
         >>> dbm = getfixture('init_writeable_dbm')
-        >>> rowid = dbm.insert_variant(1, 1, "A", "T", 0, 1, "A1T", "", 0)
+        >>> rowid = dbm.insert_variant(1, 1,"C", 0, 1, "A", "T", "A1T", "", 0)
 
         """
         sql = "INSERT IGNORE INTO variant (id, element_id, pre_ref, start, end, ref, alt, label, parent_id, frameshift) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"
         try:
             ref_dict = self.sequence_references
             selected_ref_seq = ref_dict[int(element_id)]
-            pre_ref = selected_ref_seq[int(start) - 1]
+            if int(start) <= 0:
+                pre_ref = ""
+            else:
+                pre_ref = selected_ref_seq[int(start) - 1]
         except KeyError:
             # KeyError for a case of Amino Acid, we don't stroe these information at this moment.
             # logging.warn(e)
@@ -897,8 +996,10 @@ class sonarDBManager:
 
     def get_alignment_id(self, seqhash, element_id):
         """
-        Returns the rowid of a sample based on the respective seqhash and element. If no
-        alignment of the given sequence to the given element has been stored None is returned.
+        Returns the existing alignment.
+
+        Returns the row ID of a sample based on the respective seqhash and element. If no
+        alignment of the given sequence with the given element has been stored, "None" is returned.
         """
         sql = "SELECT id FROM alignment WHERE element_id = ? AND seqhash = ? LIMIT 1;"
         self.cursor.execute(sql, [element_id, seqhash])
@@ -1129,6 +1230,21 @@ class sonarDBManager:
         self.cursor.execute(sql, [element_id, start, end, ref, alt])
         row = self.cursor.fetchone()
         return None if row is None else row["id"]
+
+    def get_variant_ids(self, variant_data_list):
+        if not variant_data_list:
+            return []
+
+        placeholders = ",".join(["(?, ?, ?, ?, ?)"] * len(variant_data_list))
+        values = [item for variant_data in variant_data_list for item in variant_data]
+
+        sql = f"""
+            SELECT id FROM variant WHERE (element_id, ref, alt, start, end ) IN ({placeholders});
+        """
+        self.cursor.execute(sql, values)
+        rows = self.cursor.fetchall()
+
+        return None if rows is None else [row["id"] for row in rows]
 
     def iter_dna_variants(self, sample_name, *element_ids):
         if len(element_ids) == 1:
@@ -1983,10 +2099,10 @@ class sonarDBManager:
         else:
             profile_sqls = ""
         if self.debug:
-            logging.info(f"Profile sqls: {profile_sqls}")
-            logging.info(f"Profile vals: {profile_vals}")
+            LOGGER.info(f"Profile sqls: {profile_sqls}")
+            LOGGER.info(f"Profile vals: {profile_vals}")
         if profile_sqls == "":
-            logging.info("Filtered Reference ID: none")
+            LOGGER.info("Filtered Reference ID: none")
             return []
 
         self.cursor.execute(profile_sqls, profile_vals)
@@ -2147,7 +2263,7 @@ class sonarDBManager:
                 # if 'sample' is presented we just use only samples
                 samples_condition = []
                 for pname, vals in reserved_props.items():
-                    logging.info("sample" + str(vals))
+                    # logging.info("sample:" + str(vals))
                     if pname == "sample":
                         for x in vals:
                             samples_condition.append('"' + x + '"')

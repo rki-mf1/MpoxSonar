@@ -8,6 +8,7 @@ import pickle
 import re
 import sys
 
+from Bio.Align.Applications import MafftCommandline
 from Bio.Emboss.Applications import StretcherCommandline
 import pandas as pd
 import parasail
@@ -22,7 +23,7 @@ class sonarAligner(object):
     alignment functionalities/statistics.
     """
 
-    def __init__(self, cache_outdir=None):
+    def __init__(self, cache_outdir=None, method=1):
         self.nuc_profile = []
         self.nuc_n_profile = []
         self.aa_profile = []
@@ -30,6 +31,7 @@ class sonarAligner(object):
         self.cigar_pattern = re.compile(r"(\d+)(\D)")
         self.outdir = TMP_CACHE if not cache_outdir else os.path.abspath(cache_outdir)
         self.logfile = open(os.path.join(self.outdir, "align.debug.log"), "a")
+        self.method = method
 
     def read_seqcache(self, fname):
         with open(fname, "r") as handle:
@@ -68,15 +70,26 @@ class sonarAligner(object):
             result.get_cigar().decode.decode(),
         )
 
-    def align_MAFFT():
-        pass
+    def align_MAFFT(self, input_fasta):
+        mafft_exe = "mafft"
+        mafft_cline = MafftCommandline(
+            mafft_exe, input=input_fasta, inputorder=True, auto=True
+        )
+        stdout, stderr = mafft_cline()
+        # find the fist position of '\n' to get seq1
+        s1 = stdout.find("\n") + 1
+        # find the start of second sequence position
+        e = stdout[1:].find(">") + 1
+        # find the '\n' of the second sequence to get seq2
+        s2 = stdout[e:].find("\n") + e
+        ref = stdout[s1:e].replace("\n", "").upper()
+        qry = stdout[s2:].replace("\n", "").upper()
+        return qry, ref
 
-    def align_global(self, qry, ref, gapopen=16, gapextend=4):
+    def align_Stretcher(self, qry, ref, gapopen=16, gapextend=4):
         """Method for handling emboss stretcher run
 
         Return:
-
-
         """
         try:
             cline = StretcherCommandline(
@@ -123,7 +136,14 @@ class sonarAligner(object):
 
         return qry, ref
 
-    def process_cached_sample_v1(self, fname):
+    def process_cached_sample(self, fname):
+        if self.method == 1:  # MAFFT
+            process_flag = self.process_cached_v1(fname)
+        elif self.method == 2:  # Parasail
+            process_flag = self.process_cached_v2(fname)
+        return process_flag
+
+    def process_cached_v1(self, fname):
         """
         Work with: Emboss Stretcher, Mafft
         This function takes a sample file and processes it.
@@ -144,9 +164,10 @@ class sonarAligner(object):
 
         sourceid = str(data["sourceid"])
         self.log("data:" + str(data))
-        alignment = self.align(data["seq_file"], data["ref_file"])
-        # self.cal_seq_length(alignment[0][0:20], msg="qry")
-        # self.cal_seq_length(alignment[1][0:20], msg="ref")
+        # alignment = self.align(data["seq_file"], data["ref_file"])
+        alignment = self.align_MAFFT(data["mafft_seqfile"])
+        # print(alignment[0][0:20]) qry
+        # print(alignment[1][0:20]) ref
         nuc_vars = [x for x in self.extract_vars(*alignment, sourceid)]
         vars = "\n".join(["\t".join(x) for x in nuc_vars])
         if nuc_vars:
@@ -172,7 +193,7 @@ class sonarAligner(object):
                 handle.write(vars + "//")
         return True
 
-    def process_cached_sample_v2(self, fname):
+    def process_cached_v2(self, fname):
         """
         Work with: Cigar format
         This function takes a sample file and processes it.
@@ -236,6 +257,8 @@ class sonarAligner(object):
     def extract_vars(self, qry_seq, ref_seq, elemid):
         """
         backup code for the old version [Emboss Stretcher]
+
+        NOTE: Frameshift is fixed with 0
         """
         query_length = len(qry_seq)
         if query_length != len(ref_seq):
@@ -259,7 +282,7 @@ class sonarAligner(object):
                     label = "del:" + str(start + 1)
                 else:
                     label = "del:" + str(start + 1) + "-" + str(end)
-                yield ref_seq[s : i + 1], str(start), str(end), " ", elemid, label
+                yield ref_seq[s : i + 1], str(start), str(end), " ", elemid, label, "0"
 
             # insertion
             elif ref_seq[i] == "-":
@@ -274,14 +297,18 @@ class sonarAligner(object):
                     ref = ref_seq[s]
                     alt = qry_seq[s : i + 1]
                 pos = s - offset + 1
-                yield ref, str(pos - 1), str(pos), alt, elemid, ref + str(pos) + alt
+                yield ref, str(pos - 1), str(pos), alt, elemid, ref + str(
+                    pos
+                ) + alt, "0"
                 offset += i - s
             # snps
             else:
                 ref = ref_seq[i]
                 alt = qry_seq[i]
                 pos = i - offset + 1
-                yield ref, str(pos - 1), str(pos), alt, elemid, ref + str(pos) + alt
+                yield ref, str(pos - 1), str(pos), alt, elemid, ref + str(
+                    pos
+                ) + alt, "0"
             i += 1
 
     def translate(self, seq, tt):

@@ -19,12 +19,17 @@ import pandas as pd
 from tqdm import tqdm
 from typing_extensions import deprecated
 
+from mpxsonar.annotation import Annotator
+from mpxsonar.annotation import export_vcf_SonarCMD
+from mpxsonar.annotation import import_annvcf_SonarCMD
+from mpxsonar.basics import sonarBasics
+from mpxsonar.utils import open_file
+from mpxsonar.utils_1 import get_filename_sonarhash
 from .align import sonarAligner
+from .config import ANNO_TOOL_PATH
+from .config import SNPSIFT_TOOL_PATH
 from .config import TMP_CACHE
 from .dbm import sonarDBManager
-from .utils import harmonize
-from .utils import hash
-from .utils import open_file
 
 # from .basics import sonarBasics
 
@@ -67,6 +72,7 @@ class sonarCache:
                 sys.exit()
             if self.debug:
                 logging.info(f"Init refmols: {self.refmols}")
+
             """
             self.default_refmol_acc = [
                 x for x in self.refmols if self.refmols[x]["molecule.standard"] == 1
@@ -113,6 +119,8 @@ class sonarCache:
         self.var_dir = os.path.join(self.basedir, "var")
         self.ref_dir = os.path.join(self.basedir, "ref")
         self.error_dir = os.path.join(self.basedir, "error")
+        self.anno_dir = os.path.join(self.basedir, "anno")
+
         os.makedirs(self.basedir, exist_ok=True)
         os.makedirs(self.seq_dir, exist_ok=True)
         os.makedirs(self.ref_dir, exist_ok=True)
@@ -120,6 +128,7 @@ class sonarCache:
         os.makedirs(self.var_dir, exist_ok=True)
         os.makedirs(self.sample_dir, exist_ok=True)
         os.makedirs(self.error_dir, exist_ok=True)
+        os.makedirs(self.anno_dir, exist_ok=True)
 
         self._samplefiles = set()
         self._samplefiles_to_profile = set()
@@ -210,6 +219,18 @@ class sonarCache:
         fn = self.slugify(hashlib.sha1(sample_name.encode("utf-8")).hexdigest())
         return os.path.join(self.sample_dir, fn[:2], fn + ".sample")
 
+    def get_vcf_fname(self, sample_name):
+        fn = self.slugify(hashlib.sha1(sample_name.encode("utf-8")).hexdigest())
+        return os.path.join(self.anno_dir, fn[:2], fn + ".vcf")
+
+    def get_anno_vcf_fname(self, sample_name):
+        fn = self.slugify(hashlib.sha1(sample_name.encode("utf-8")).hexdigest())
+        return os.path.join(self.anno_dir, fn[:2], fn + ".ann.vcf")
+
+    def get_anno_tsv_fname(self, sample_name):
+        fn = self.slugify(hashlib.sha1(sample_name.encode("utf-8")).hexdigest())
+        return os.path.join(self.anno_dir, fn[:2], fn + ".ann.tsv")
+
     def cache_sample(
         self,
         name,
@@ -222,6 +243,10 @@ class sonarCache:
         translation_id,
         algnid,
         seqfile,
+        mafft_seqfile,
+        vcffile,
+        anno_vcf_file,
+        anno_tsv_file,
         reffile,
         ttfile,
         algnfile,
@@ -246,6 +271,10 @@ class sonarCache:
             "header": header,
             "seqhash": seqhash,
             "seq_file": seqfile,
+            "mafft_seqfile": mafft_seqfile,
+            "vcffile": vcffile,
+            "anno_vcf_file": anno_vcf_file,
+            "anno_tsv_file": anno_tsv_file,
             "ref_file": reffile,
             "tt_file": ttfile,
             "algn_file": algnfile,
@@ -254,7 +283,7 @@ class sonarCache:
             "cds_file": cdsfile,
             "properties": properties,
         }
-        fname = self.get_sample_fname(name)  # full path
+        fname = self.get_sample_fname(name)  # return fname with full path
 
         self.log("Get:" + fname)
 
@@ -263,7 +292,7 @@ class sonarCache:
         except OSError:
             os.makedirs(os.path.dirname(fname), exist_ok=True)
             self.write_pickle(fname, data)
-
+        # Keeps Full path of each sample.
         self._samplefiles.add(fname)
         if algnid is None:
             self._samplefiles_to_profile.add(fname)
@@ -296,6 +325,21 @@ class sonarCache:
             with open(fname, "w") as handle:
                 handle.write(sequence)
             self._refs.add(refid)
+        return fname
+
+    def cache_seq_mafftinput(self, refid, ref_sequence, seqhash, qry_sequence):
+        """
+        This function create fasta file which contains
+        only two samples. The file will be used for MAFFT input.
+        """
+        # Get fname (.seq)
+        fname = self.get_seq_fname(seqhash)
+        fname = fname + ".fasta"  # (.seq.fasta)
+        with open(fname, "w") as handle:
+            handle.write(">" + refid + "\n")
+            handle.write(ref_sequence + "\n")
+            handle.write(">" + seqhash + "\n")
+            handle.write(qry_sequence + "\n")
         return fname
 
     def cache_translation_table(self, translation_id, dbm):
@@ -407,6 +451,16 @@ class sonarCache:
         return fname
 
     def process_fasta_entry(self, header, seq):
+        """
+        Formulate a final dict.
+
+        Return:
+            Dict
+                example:
+                {'name': 'OQ331004.1', 'header': 'OQ331004.1 Monkeypox virus isolate Monkeypox virus/Human/USA/CA-LACPHL-MA00393/2022,
+                partial genome', 'seqhash': 'Bjhx5hv8G4m6v8kpwt4isQ4J6TQ', 'sequence': 'TACTGAAGAAW',
+                'refmol': 'NC_063383.1', 'refmolid': 1, 'translation_id': 1, 'properties': {}}
+        """
         sample_id = header.replace("\t", " ").replace("|", " ").split(" ")[0]
         refmol = self.get_refmol(header)
         if not refmol:
@@ -417,7 +471,7 @@ class sonarCache:
                 + self._molregex.search(header)
                 + ")."
             )
-        seq = harmonize(seq)
+        seq = sonarBasics.harmonize_seq(seq)
         seqhash = hash(seq)
         refmolid = self.refmols[refmol]["molecule.id"]
         return {
@@ -433,7 +487,9 @@ class sonarCache:
 
     def iter_fasta(self, *fnames):
         """
-        This function iterates over the fasta files and returns a dictionary for each record
+        This function iterates over the fasta files and yield a dict of selected reference and
+        each sequence.
+
         """
         for fname in fnames:
             with open_file(fname, compressed="auto") as handle, tqdm(
@@ -472,10 +528,6 @@ class sonarCache:
                 return self.refmols[mol]["accession"]
             except Exception:
                 None
-        if self.debug:
-            logging.info(
-                f"Using default (given) reference mol accession: {self.default_refmol_acc}"
-            )
         return self.default_refmol_acc
 
     def get_refseq(self, refmol_acc):
@@ -544,6 +596,10 @@ class sonarCache:
         return {x.group(1): x.group(2) for x in self._propregex.finditer(fasta_header)}
 
     def add_fasta(self, *fnames, propdict=defaultdict(dict)):  # noqa: C901
+        """
+        Prepare/Create dict and then write  it ".sample" file (pickle file) to cache directory
+        the dict contains all information (e.g., name, algnid, refmol, varfile )
+        """
         default_properties = {
             x: self.properties[x]["standard"] for x in self.properties
         }
@@ -551,7 +607,7 @@ class sonarCache:
         with sonarDBManager(self.db, debug=self.debug) as dbm:
             for fname in fnames:
                 for data in self.iter_fasta(fname):
-                    # EDIT: we currently lock the filtering part. print(data)
+                    # EDIT: we currently lock the filtering part.
                     # check sequence lenght
                     # if not check_seq_compact(
                     #    self.get_refseq(data["refmol"]), data["sequence"]
@@ -578,19 +634,21 @@ class sonarCache:
                         for k, v in propdict[data["sampleid"]].items():
                             data["properties"][k] = v
 
-                    # check reference
+                    # Check Reference
                     # print("refmol", data)
-                    # CHANGED IN MPXsonar: use ref acc
-                    # refseq_id = self.get_refseq_id(data["refmol"]) from old covsonar
+
+                    # refseq_id = self.get_refseq_id(data["refmol"])  # this line is from old covsonar
+                    # Note Change: IN MPXsonar, we use reference accession (e.g., NC_063383.1)
+                    # instead of using ID (e.g., 1) to avoid confusion or altering references across the database.
                     refseq_id = data["refmol"]
 
                     self.write_checkref_log(data, refseq_id)
 
-                    # check alignment
+                    # Check Alignment
                     data["algnid"] = dbm.get_alignment_id(data["seqhash"], refseq_id)
-                    # write file (.seq, ref)
+                    # Write tmp/cache file (e.g., .seq, .ref)
                     data = self.assign_data(data, seqhash, refseq_id, dbm)
-                    print(data)
+
                     del data["sequence"]
                     self.cache_sample(**data)
         if failed_list:
@@ -601,7 +659,9 @@ class sonarCache:
             logging.warn("Fail max/min seq lenght rule:" + str(failed_list))
 
     def write_checkref_log(self, data, refseq_id):
-        """this function linked to the add_fasta"""
+        """
+        This function linked to the add_fasta()
+        """
         if not refseq_id:
             if not self.ignore_errors:
                 self.log(
@@ -621,19 +681,30 @@ class sonarCache:
                 )
 
     def assign_data(self, data, seqhash, refseq_id, dbm):
-        """this function linked to the add_fasta
-        refseq_id is ID from element table.
-        ref_acc is accession in reference table.
+        """This function linked to the add_fasta
+
+        Create dict to store all related output file.
+        and it calls sub function to create all related files.
+
+        Args:
+            refseq_id (int): is ID from element table.
+            ref_acc (string): is accession from reference table.
 
         """
         if data["algnid"] is None:
             data["seqfile"] = self.cache_sequence(data["seqhash"], data["sequence"])
             # TODO: get ref accession number and put into cache_lift
-            # to fix recreate cache directory *(optional task)
+            # to recreate cache directory *(optional task)
             data["reffile"] = self.cache_reference(
                 refseq_id, self.get_refseq(data["refmol"])
             )
 
+            data["mafft_seqfile"] = self.cache_seq_mafftinput(
+                refseq_id,
+                self.get_refseq(data["refmol"]),
+                data["seqhash"],
+                data["sequence"],
+            )
             data["ttfile"] = self.cache_translation_table(data["translation_id"], dbm)
             data["liftfile"] = self.cache_lift(
                 refseq_id, data["refmol"], self.get_refseq(data["refmol"])
@@ -645,12 +716,29 @@ class sonarCache:
             data["varfile"] = self.get_var_fname(
                 data["seqhash"] + "@" + self.get_refhash(data["refmol"])
             )
+
+            data["vcffile"] = self.get_vcf_fname(refseq_id + "@" + data["name"])
+            data["anno_vcf_file"] = self.get_anno_vcf_fname(
+                refseq_id + "@" + data["name"]
+            )
+            data["anno_tsv_file"] = self.get_anno_tsv_fname(
+                refseq_id + "@" + data["name"]
+            )
+
         else:
+            # In case, sample is reupload under the same name
             if data["seqhash"] != seqhash:
                 data["seqfile"] = self.cache_sequence(data["seqhash"], data["sequence"])
-            else:
+                data["mafft_seqfile"] = self.cache_seq_mafftinput(
+                    refseq_id,
+                    self.get_refseq(data["refmol"]),
+                    data["seqhash"],
+                    data["sequence"],
+                )
+            else:  # if no changed in sequence. use the exisitng cache.
                 data["seqhash"] = None
                 data["seqfile"] = None
+                data["mafft_seqfile"] = None
 
             data["reffile"] = None
             data["ttfile"] = None
@@ -658,9 +746,19 @@ class sonarCache:
             data["cdsfile"] = None
             data["algnfile"] = None
             data["varfile"] = None
+            data["vcffile"] = self.get_vcf_fname(refseq_id + "@" + data["name"])
+            data["anno_vcf_file"] = self.get_anno_vcf_fname(
+                refseq_id + "@" + data["name"]
+            )
+            data["anno_tsv_file"] = self.get_anno_tsv_fname(
+                refseq_id + "@" + data["name"]
+            )
         return data
 
     def import_cached_samples(self, threads):  # noqa: C901
+        """
+        NOTE: Performance is so slow.
+        """
         list_fail_samples = []
         refseqs = {}
         count_sample = 0
@@ -676,9 +774,10 @@ class sonarCache:
                 # print("\n")
                 # print("-----####------ sample_data -----####------")
                 # print(sample_data)
-
+                # get the start time
                 try:
                     # nucleotide level import
+                    var_row_list = []
                     if not sample_data["seqhash"] is None:
                         dbm.insert_sample(sample_data["name"], sample_data["seqhash"])
                         # self.log("sample_data:" + str(sample_data))
@@ -695,15 +794,16 @@ class sonarCache:
                                 if line == "//":
                                     break
                                 vardat = line.strip("\r\n").split("\t")
-                                dbm.insert_variant(
-                                    algnid,
-                                    vardat[4],
-                                    vardat[0],
-                                    vardat[3],
-                                    vardat[1],
-                                    vardat[2],
-                                    vardat[5],
-                                    frameshift=vardat[6],
+                                var_row_list.append(
+                                    (
+                                        vardat[4],  # element id
+                                        vardat[0],  # ref
+                                        vardat[3],  # alt
+                                        vardat[1],  # start
+                                        vardat[2],  # end
+                                        vardat[5],  # label
+                                        vardat[6],
+                                    )  # frameshift
                                 )
                             if line != "//":
                                 sys.exit(
@@ -711,12 +811,41 @@ class sonarCache:
                                     + sample_data["var_file"]
                                     + ")"
                                 )
-                    # paranoia test
+                            dbm.insert_variant_many(var_row_list, algnid)
+
+                    # print('Execution time- Insert:',  round(elapsed_time,2), 'seconds')
                     if not sample_data["seqhash"] is None:
+
                         paranoid_dict = self.paranoid_check(refseqs, sample_data, dbm)
                         if paranoid_dict:
                             list_fail_samples.append(paranoid_dict)
+
                         count_sample = count_sample + 1
+
+                        # print('Execution time- Paranoid:',  round(elapsed_time,2), 'seconds')
+
+                        # "If Dict is Empty", Proceed to Annotation step.
+                        if not paranoid_dict:
+                            export_vcf_SonarCMD(
+                                sample_data["refmol"],
+                                sample_data["name"],
+                                sample_data["vcffile"],
+                            )
+                            annotator = Annotator(ANNO_TOOL_PATH, SNPSIFT_TOOL_PATH)
+                            annotator.snpeff_annotate(
+                                sample_data["vcffile"],
+                                sample_data["anno_vcf_file"],
+                                sample_data["refmol"],
+                            )
+                            annotator.snpeff_transform_output(
+                                sample_data["anno_vcf_file"],
+                                sample_data["anno_tsv_file"],
+                            )
+                            import_annvcf_SonarCMD(
+                                get_filename_sonarhash(sample_data["vcffile"]),
+                                sample_data["anno_tsv_file"],
+                            )
+
                 except Exception as e:
                     logging.error("\n------- Fatal Error ---------")
                     print(traceback.format_exc())
@@ -735,7 +864,7 @@ class sonarCache:
             # start process.
             # self.paranoid_align_multi(list_fail_samples, threads)
         count_sample = count_sample - len(list_fail_samples)
-        logging.info("Total sample insert: " + str(count_sample))
+        logging.info("Total inserted: " + str(count_sample))
 
     def _align(self, output_paranoid, qryfile, reffile, sample_name):
         # print(output_paranoid, qryfile, reffile, sample_name)
@@ -777,11 +906,11 @@ class sonarCache:
 
     def paranoid_check(self, refseqs, sample_data, dbm):  # noqa: C901
         """
-        The current version of paranoid test.
-        link to import_cached_samples
+        This is the current version of paranoid test.
+        It is linked to import_cached_samples
 
-
-        return dict.
+        Return:
+            dict.
         """
         try:
             seq = list(refseqs[sample_data["sourceid"]])
@@ -793,7 +922,10 @@ class sonarCache:
         prefix = ""
         gaps = {".", " "}
         sample_name = sample_data["name"]
-        for vardata in dbm.iter_dna_variants(sample_name, sample_data["sourceid"]):
+        iter_dna_list = list(
+            dbm.iter_dna_variants(sample_name, sample_data["sourceid"])
+        )
+        for vardata in iter_dna_list:
             if vardata["variant.alt"] in gaps:
                 for i in range(vardata["variant.start"], vardata["variant.end"]):
                     seq[i] = ""
@@ -804,6 +936,7 @@ class sonarCache:
                 seq[vardata["variant.start"]] = vardata["variant.alt"]
             else:
                 prefix = vardata["variant.alt"]
+
         ref_name = sample_data["refmol"]
         # seq is now a restored version from variant dict.
         seq = prefix + "".join(seq)
@@ -820,9 +953,7 @@ class sonarCache:
             with open(
                 os.path.join(self.error_dir, f"{sample_name}.error.var"), "w+"
             ) as handle:
-                for vardata in dbm.iter_dna_variants(
-                    sample_name, sample_data["sourceid"]
-                ):
+                for vardata in iter_dna_list:
                     handle.write(str(vardata) + "\n")
 
             qryfile = os.path.join(

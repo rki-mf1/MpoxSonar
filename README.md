@@ -399,7 +399,7 @@ This section provides guidance on preparing the input files for annotation by us
 
 #### -- Install SNPEff and custom database
 
-Download and installing SnpEff: it pretty easy, take a look at the [download page](https://pcingola.github.io/SnpEff/download/).
+Download and installing SnpEff: it pretty easy, take a look at the [download page](https://pcingola.github.io/SnpEff/download/). SnpEff requires that you have Java v1.8 or later installed.
 
 Configure SnpEff: Open the snpEff.config file, which is located in your SnpEff installation directory. Inside the file, you will find various configuration options. Look for the data.dir parameter and specify the path where you want to store the SnpEff databases.
 

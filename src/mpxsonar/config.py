@@ -14,3 +14,6 @@ LOG_LEVEL = os.getenv("LOG_LEVEL") or 20
 
 
 TMP_CACHE = os.path.abspath(mkdtemp(prefix=".sonarCache_"))
+
+ANNO_TOOL_PATH = os.getenv("ANNO_TOOL_PATH")
+SNPSIFT_TOOL_PATH = os.getenv("SNPSIFT_TOOL_PATH")
